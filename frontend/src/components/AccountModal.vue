@@ -1,6 +1,5 @@
 <script setup>
 import { ref, watch } from 'vue';
-import { UserPlus, LogIn, X, AlertCircle, RefreshCw, Sparkles } from 'lucide-vue-next';
 import { useSession } from '../composables/useSession';
 
 const props = defineProps({
@@ -109,7 +108,7 @@ async function handleLogin() {
         class="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg transition"
         aria-label="Close modal"
       >
-        <X class="w-5 h-5" />
+        <i class="pi pi-times text-base" />
       </button>
 
       <!-- Tabs header -->
@@ -124,7 +123,7 @@ async function handleLogin() {
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
           ]"
         >
-          <UserPlus class="w-4 h-4" />
+          <i class="pi pi-user-plus text-sm" />
           <span>New Account</span>
         </button>
 
@@ -138,14 +137,14 @@ async function handleLogin() {
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
           ]"
         >
-          <LogIn class="w-4 h-4" />
+          <i class="pi pi-sign-in text-sm" />
           <span>Log In</span>
         </button>
       </div>
 
       <!-- Error alert -->
       <div v-if="errorMsg" class="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs rounded-lg flex items-center gap-2">
-        <AlertCircle class="w-4 h-4 shrink-0" />
+        <i class="pi pi-exclamation-circle text-sm shrink-0" />
         <span>{{ errorMsg }}</span>
       </div>
 
@@ -203,8 +202,8 @@ async function handleLogin() {
             :disabled="isSubmitting"
             class="flex items-center gap-2 px-5 py-2.5 bg-lime-600 hover:bg-lime-500 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50 shadow-sm"
           >
-            <RefreshCw v-if="isSubmitting" class="w-4 h-4 animate-spin" />
-            <Sparkles v-else class="w-4 h-4" />
+            <i v-if="isSubmitting" class="pi pi-spin pi-spinner text-sm" />
+            <i v-else class="pi pi-sparkles text-sm" />
             <span>{{ isSubmitting ? 'Generating...' : 'Create Inbox' }}</span>
           </button>
         </div>
@@ -251,8 +250,8 @@ async function handleLogin() {
             :disabled="isSubmitting"
             class="flex items-center gap-2 px-5 py-2.5 bg-lime-600 hover:bg-lime-500 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50 shadow-sm"
           >
-            <RefreshCw v-if="isSubmitting" class="w-4 h-4 animate-spin" />
-            <LogIn v-else class="w-4 h-4" />
+            <i v-if="isSubmitting" class="pi pi-spin pi-spinner text-sm" />
+            <i v-else class="pi pi-sign-in text-sm" />
             <span>{{ isSubmitting ? 'Authenticating...' : 'Sign In' }}</span>
           </button>
         </div>

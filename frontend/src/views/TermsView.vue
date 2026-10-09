@@ -1,5 +1,4 @@
 <script setup>
-import { ChevronLeft } from 'lucide-vue-next';
 </script>
 
 <template>
@@ -10,7 +9,7 @@ import { ChevronLeft } from 'lucide-vue-next';
         to="/"
         class="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition"
       >
-        <ChevronLeft class="h-5 w-5" />
+        <i class="pi pi-chevron-left text-sm" />
         <span>Back</span>
       </router-link>
     </div>

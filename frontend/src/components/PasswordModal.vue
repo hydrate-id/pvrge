@@ -1,6 +1,5 @@
 <script setup>
 import { ref } from 'vue';
-import { Key, Copy, Check, Eye, EyeOff, X } from 'lucide-vue-next';
 
 const props = defineProps({
   isOpen: Boolean,
@@ -36,12 +35,12 @@ async function copyPassword() {
         class="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition"
         aria-label="Close modal"
       >
-        <X class="w-5 h-5" />
+        <i class="pi pi-times text-base" />
       </button>
 
       <div class="flex items-center gap-3 mb-4">
         <div class="p-2.5 rounded-xl bg-amber-500/10 text-amber-500">
-          <Key class="w-6 h-6" />
+          <i class="pi pi-key text-xl" />
         </div>
         <div>
           <h3 class="text-lg font-bold text-slate-900 dark:text-white">Account Password</h3>
@@ -76,8 +75,8 @@ async function copyPassword() {
                 @click="showPassword = !showPassword" 
                 class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition"
               >
-                <EyeOff v-if="showPassword" class="w-4 h-4" />
-                <Eye v-else class="w-4 h-4" />
+                <i v-if="showPassword" class="pi pi-eye-slash text-sm" />
+                <i v-else class="pi pi-eye text-sm" />
               </button>
             </div>
             <button 
@@ -85,8 +84,8 @@ async function copyPassword() {
               @click="copyPassword"
               class="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition shrink-0 active:scale-95 shadow-sm"
             >
-              <Check v-if="copied" class="w-4 h-4 text-emerald-200" />
-              <Copy v-else class="w-4 h-4" />
+              <i v-if="copied" class="pi pi-check text-sm text-emerald-200" />
+              <i v-else class="pi pi-copy text-sm" />
               <span>{{ copied ? 'Copied!' : 'Copy' }}</span>
             </button>
           </div>

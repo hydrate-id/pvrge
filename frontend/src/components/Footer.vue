@@ -1,5 +1,4 @@
 <script setup>
-import { ShieldCheck, Clock } from 'lucide-vue-next';
 </script>
 
 <template>
@@ -12,7 +11,7 @@ import { ShieldCheck, Clock } from 'lucide-vue-next';
           <span class="font-semibold text-slate-700 dark:text-slate-300">pvrge</span>
           <span>•</span>
           <span class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-            <Clock class="w-3.5 h-3.5" />
+            <i class="pi pi-clock text-xs" />
             24-hour automatic message purge
           </span>
         </div>

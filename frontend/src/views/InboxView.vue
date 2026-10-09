@@ -1,10 +1,5 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import {
-  Inbox, Trash2, Paperclip, RefreshCw, ChevronLeft,
-  ChevronRight, ArrowDownCircle, FileText, Code2, Loader2,
-  Mail
-} from 'lucide-vue-next';
 import { useSession } from '../composables/useSession';
 import EnvelopeIllustration from '../components/EnvelopeIllustration.vue';
 
@@ -336,7 +331,7 @@ onUnmounted(() => {
                         {{ msg.from_name || msg.from_address }}
                       </div>
                       <div class="mt-1 flex items-center text-sm/5 text-gray-500 dark:text-gray-400">
-                        <Mail class="mr-1.5 size-4 shrink-0 text-gray-400" />
+                        <i class="pi pi-envelope mr-1.5 text-sm shrink-0 text-gray-400" />
                         <span class="truncate">{{ msg.from_address }}</span>
                       </div>
                     </div>
@@ -352,7 +347,7 @@ onUnmounted(() => {
                     </div>
                   </div>
                 </div>
-                <ChevronRight class="size-5 text-gray-400" />
+                <i class="pi pi-chevron-right text-sm text-gray-400" />
               </div>
             </a>
           </li>
@@ -367,7 +362,7 @@ onUnmounted(() => {
         @click="deselectMessage"
         class="flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500 mb-2"
       >
-        <ChevronLeft class="mr-1 -ml-1 size-5 shrink-0" /> Back
+        <i class="pi pi-chevron-left mr-1 -ml-1 text-sm shrink-0" /> Back
       </button>
 
       <!-- Loading Detail State -->
@@ -375,7 +370,7 @@ onUnmounted(() => {
         v-if="isLoadingDetail"
         class="overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800/75 p-12 text-center"
       >
-        <Loader2 class="mx-auto h-8 w-8 animate-spin text-lime-500 mb-2" />
+        <i class="pi pi-spin pi-spinner mx-auto text-2xl text-lime-500 mb-2 block" />
         <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Loading message content...</p>
       </div>
 
@@ -397,7 +392,7 @@ onUnmounted(() => {
                 class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 transition disabled:opacity-50"
                 :title="`Download ${att.filename}`"
               >
-                <Paperclip class="size-3.5 text-amber-500" />
+                <i class="pi pi-paperclip text-xs text-amber-500" />
                 <span class="max-w-[120px] truncate">{{ att.filename }}</span>
               </button>
             </template>
@@ -409,7 +404,7 @@ onUnmounted(() => {
               class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 transition disabled:opacity-50"
               title="Delete message"
             >
-              <Trash2 class="size-4 text-rose-600 dark:text-rose-400" />
+              <i class="pi pi-trash text-sm text-rose-600 dark:text-rose-400" />
               <span>{{ isDeleting ? 'Deleting...' : 'Delete' }}</span>
             </button>
           </div>

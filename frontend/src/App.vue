@@ -1,10 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
-import {
-  Sun, Moon, Copy, Check, Menu, X,
-  User, Trash2, Plus, LogIn, Mail
-} from 'lucide-vue-next';
 import { useSession } from './composables/useSession';
 import { useTheme } from './composables/useTheme';
 import AccountModal from './components/AccountModal.vue';
@@ -160,7 +156,7 @@ onUnmounted(() => {
             class="ml-1 flex h-10 w-10 items-center justify-center rounded-full focus:outline-none text-white"
             @click="mobileMenuOpen = false"
           >
-            <X class="h-6 w-6" />
+            <i class="pi pi-times text-lg" />
           </button>
         </div>
 
@@ -466,7 +462,7 @@ onUnmounted(() => {
                       @click="handleCreateAccount"
                       class="w-full flex items-center select-none outline-none rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/30 p-1.5 text-sm gap-2 text-indigo-600 dark:text-indigo-400 transition-colors text-left"
                     >
-                      <User class="size-4 shrink-0" />
+                      <i class="pi pi-user text-sm shrink-0" />
                       <span class="truncate font-medium">Create an account</span>
                     </button>
 
@@ -476,7 +472,7 @@ onUnmounted(() => {
                       @click="openLoginModal"
                       class="w-full flex items-center select-none outline-none rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/30 p-1.5 text-sm gap-2 text-blue-600 dark:text-blue-400 transition-colors text-left"
                     >
-                      <LogIn class="size-4 shrink-0" />
+                      <i class="pi pi-sign-in text-sm shrink-0" />
                       <span class="truncate font-medium">Log in</span>
                     </button>
 
@@ -486,7 +482,7 @@ onUnmounted(() => {
                       @click="handleDeleteCurrentAccount"
                       class="w-full flex items-center select-none outline-none rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 p-1.5 text-sm gap-2 text-rose-600 dark:text-rose-400 transition-colors text-left"
                     >
-                      <Trash2 class="size-4 shrink-0" />
+                      <i class="pi pi-trash text-sm shrink-0" />
                       <span class="truncate font-medium">Delete account</span>
                     </button>
                   </div>

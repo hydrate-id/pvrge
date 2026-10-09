@@ -1,5 +1,4 @@
 <script setup>
-import { ChevronLeft, Mail, Send, Copy, Check } from 'lucide-vue-next';
 import { ref } from 'vue';
 
 const email = 'support@pvrge.com';
@@ -27,7 +26,7 @@ async function copyEmail() {
         to="/"
         class="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition"
       >
-        <ChevronLeft class="h-5 w-5" />
+        <i class="pi pi-chevron-left text-sm" />
         <span>Back</span>
       </router-link>
     </div>
@@ -47,7 +46,7 @@ async function copyEmail() {
         <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/50 flex flex-col justify-between space-y-3">
           <div class="flex items-center gap-2.5">
             <div class="h-9 w-9 rounded-full bg-lime-100 dark:bg-lime-900/60 text-lime-700 dark:text-lime-300 flex items-center justify-center shrink-0">
-              <Mail class="w-5 h-5" />
+              <i class="pi pi-envelope text-lg" />
             </div>
             <div>
               <h2 class="text-sm font-bold text-gray-900 dark:text-white">Email Support</h2>
@@ -64,7 +63,7 @@ async function copyEmail() {
               :href="`mailto:${email}`"
               class="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-semibold text-white bg-lime-600 hover:bg-lime-500 transition shadow-sm"
             >
-              <Mail class="w-3.5 h-3.5" />
+              <i class="pi pi-envelope text-xs" />
               <span>Send Email</span>
             </a>
             <button
@@ -72,8 +71,8 @@ async function copyEmail() {
               class="inline-flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-md text-xs font-medium border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
               title="Copy email"
             >
-              <Check v-if="copied" class="w-3.5 h-3.5 text-lime-600 dark:text-lime-400" />
-              <Copy v-else class="w-3.5 h-3.5" />
+              <i v-if="copied" class="pi pi-check text-xs text-lime-600 dark:text-lime-400" />
+              <i v-else class="pi pi-copy text-xs" />
               <span>{{ copied ? 'Copied' : 'Copy' }}</span>
             </button>
           </div>
@@ -83,7 +82,7 @@ async function copyEmail() {
         <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/50 flex flex-col justify-between space-y-3">
           <div class="flex items-center gap-2.5">
             <div class="h-9 w-9 rounded-full bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 flex items-center justify-center shrink-0">
-              <Send class="w-5 h-5" />
+              <i class="pi pi-send text-lg" />
             </div>
             <div>
               <h2 class="text-sm font-bold text-gray-900 dark:text-white">Telegram</h2>
@@ -102,7 +101,7 @@ async function copyEmail() {
               rel="noopener noreferrer"
               class="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 transition shadow-sm"
             >
-              <Send class="w-3.5 h-3.5" />
+              <i class="pi pi-send text-xs" />
               <span>Open Telegram</span>
             </a>
           </div>
