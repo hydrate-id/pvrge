@@ -227,6 +227,54 @@ export const app = new Elysia({ aot: false })
       }
     };
   })
+  .get("/api/messages/:id/source", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request.headers, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    const message = await env.DB.prepare(
+      "SELECT id, sender_name, sender_email, subject, body_text, body_html, raw_r2_key, received_at FROM messages WHERE id = ? AND account_id = ?"
+    ).bind(params.id, user.id).first<{
+      id: string;
+      sender_name: string | null;
+      sender_email: string;
+      subject: string;
+      body_text: string | null;
+      body_html: string | null;
+      raw_r2_key: string | null;
+      received_at: string;
+    }>();
+
+    if (!message) {
+      set.status = 404;
+      return { error: "Message not found" };
+    }
+
+    if (message.raw_r2_key) {
+      const object = await env.STORAGE.get(message.raw_r2_key);
+      if (object) {
+        const rawText = await object.text();
+        return new Response(rawText, {
+          headers: { "Content-Type": "text/plain; charset=utf-8" }
+        });
+      }
+    }
+
+    const rawText = `Delivered-To: ${user.email}
+From: ${message.sender_name ? `${message.sender_name} <${message.sender_email}>` : message.sender_email}
+To: ${user.email}
+Subject: ${message.subject}
+Date: ${new Date(message.received_at).toUTCString()}
+Content-Type: text/html; charset=utf-8
+
+${message.body_html || message.body_text || ""}`;
+
+    return new Response(rawText, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" }
+    });
+  })
   .delete("/api/messages/:id", async ({ params, request, env, set }) => {
     const user = await getAuthUser(request.headers, env);
     if (!user) {
