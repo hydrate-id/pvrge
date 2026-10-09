@@ -500,72 +500,71 @@ onUnmounted(() => {
           <div class="min-w-0 flex-1">
             <h1 class="text-2xl/7 font-bold text-gray-900 sm:truncate dark:text-gray-300">Source</h1>
           </div>
-          <div class="mt-4 flex shrink-0 overflow-y-auto md:mt-0 md:ml-4">
-            <div class="relative">
+          <div class="relative mt-4 flex shrink-0 md:mt-0 md:ml-4">
+            <button
+              type="button"
+              @click="showActionsMenu = !showActionsMenu"
+              class="rounded-md font-medium inline-flex items-center text-sm ring-1 ring-inset ring-gray-200 dark:ring-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 p-1.5 transition"
+              title="More actions"
+            >
+              <EllipsisV class="size-5 shrink-0" />
+            </button>
+
+            <!-- Backdrop for click outside -->
+            <div
+              v-if="showActionsMenu"
+              class="fixed inset-0 z-40"
+              @click="showActionsMenu = false"
+            ></div>
+
+            <!-- Menu actions jika dibuka dari view source -->
+            <div
+              v-if="showActionsMenu"
+              class="absolute right-0 top-full mt-1.5 w-44 rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black/5 dark:ring-gray-700 z-50 py-1 text-sm focus:outline-none"
+            >
+              <!-- Download -->
               <button
                 type="button"
-                @click="showActionsMenu = !showActionsMenu"
-                class="rounded-md font-medium inline-flex items-center text-sm ring-1 ring-inset ring-gray-200 dark:ring-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 p-1.5 transition"
+                @click="downloadEmail"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
               >
-                <EllipsisV class="size-5 shrink-0" />
+                <Download class="size-4 shrink-0" />
+                <span>Download</span>
               </button>
 
-              <!-- Backdrop for click outside -->
-              <div
-                v-if="showActionsMenu"
-                class="fixed inset-0 z-20"
-                @click="showActionsMenu = false"
-              ></div>
-
-              <!-- Menu actions jika dibuka dari view source -->
-              <div
-                v-if="showActionsMenu"
-                class="absolute right-0 top-full mt-1.5 w-44 rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black/5 dark:ring-gray-700 z-30 py-1 text-sm focus:outline-none"
+              <!-- Source -->
+              <button
+                type="button"
+                @click="toggleSource"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
               >
-                <!-- Download -->
-                <button
-                  type="button"
-                  @click="downloadEmail"
-                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
-                >
-                  <Download class="size-4 shrink-0" />
-                  <span>Download</span>
-                </button>
+                <Code class="size-4 shrink-0" />
+                <span>View message</span>
+              </button>
 
-                <!-- Source -->
-                <button
-                  type="button"
-                  @click="toggleSource"
-                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
-                >
-                  <Code class="size-4 shrink-0" />
-                  <span>Source</span>
-                </button>
+              <!-- Print -->
+              <button
+                type="button"
+                @click="printEmail"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+              >
+                <Print class="size-4 shrink-0" />
+                <span>Print</span>
+              </button>
 
-                <!-- Print -->
-                <button
-                  type="button"
-                  @click="printEmail"
-                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
-                >
-                  <Print class="size-4 shrink-0" />
-                  <span>Print</span>
-                </button>
+              <!-- Divider -->
+              <div class="-mx-1 my-1 h-px bg-gray-200 dark:bg-gray-700"></div>
 
-                <!-- Divider -->
-                <div class="-mx-1 my-1 h-px bg-gray-200 dark:bg-gray-700"></div>
-
-                <!-- Delete -->
-                <button
-                  type="button"
-                  @click="() => { showActionsMenu = false; deleteSelectedMessage(); }"
-                  :disabled="isDeleting"
-                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition disabled:opacity-50"
-                >
-                  <Trash class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
-                  <span>Delete</span>
-                </button>
-              </div>
+              <!-- Delete -->
+              <button
+                type="button"
+                @click="() => { showActionsMenu = false; deleteSelectedMessage(); }"
+                :disabled="isDeleting"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition disabled:opacity-50"
+              >
+                <Trash class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                <span>Delete</span>
+              </button>
             </div>
           </div>
         </div>
@@ -607,14 +606,14 @@ onUnmounted(() => {
             <!-- Backdrop for click outside -->
             <div
               v-if="showActionsMenu"
-              class="fixed inset-0 z-20"
+              class="fixed inset-0 z-40"
               @click="showActionsMenu = false"
             ></div>
 
             <!-- Dropdown Menu -->
             <div
               v-if="showActionsMenu"
-              class="absolute right-0 top-full mt-1.5 w-44 rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black/5 dark:ring-gray-700 z-30 py-1 text-sm focus:outline-none"
+              class="absolute right-0 top-full mt-1.5 w-44 rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black/5 dark:ring-gray-700 z-50 py-1 text-sm focus:outline-none"
             >
               <!-- Download -->
               <button
