@@ -1,21 +1,27 @@
 <script setup>
-import { Mail, MessageSquare, Send, CheckCircle2, ArrowLeft } from 'lucide-vue-next';
+import { Mail, Send, Copy, Check, ArrowLeft, ExternalLink, Info } from 'lucide-vue-next';
 import { ref } from 'vue';
 
-const name = ref('');
-const email = ref('');
-const message = ref('');
-const submitted = ref(false);
+const copied = ref(false);
+const email = 'support@pvrge.com';
+const telegramUrl = 'https://t.me/pvrgebot';
 
-function handleSubmit() {
-  if (!name.value || !email.value || !message.value) return;
-  submitted.value = true;
+async function copyEmail() {
+  try {
+    await navigator.clipboard.writeText(email);
+    copied.value = true;
+    setTimeout(() => {
+      copied.value = false;
+    }, 2000);
+  } catch (e) {
+    console.error('Failed to copy', e);
+  }
 }
 </script>
 
 <template>
   <div class="flex-1 h-full overflow-y-auto bg-slate-50 dark:bg-slate-950">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       <!-- Back to Inbox Button -->
       <div class="mb-6">
         <router-link
@@ -29,123 +35,86 @@ function handleSubmit() {
 
       <!-- Header -->
       <div class="text-center max-w-2xl mx-auto mb-10">
-        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 mb-4">
-          <MessageSquare class="w-3.5 h-3.5" />
-          Get in Touch
-        </div>
         <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
           Contact Support
         </h1>
-        <p class="mt-2 text-sm sm:text-base text-slate-600 dark:text-slate-400">
-          Have questions, feedback, or need to report abuse? Reach out to our technical team.
+        <p class="mt-3 text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+          If you have any questions, feedback, or need to report abuse, please reach out to us directly through the channels below.
         </p>
       </div>
 
-      <!-- Content -->
-      <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-6">
-        <!-- Contact Info Card -->
-        <div class="md:col-span-2 space-y-4">
-          <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-            <h2 class="text-base font-bold text-slate-900 dark:text-white">
-              Support Channels
-            </h2>
-            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-              We operate automated edge infrastructure with high availability. For questions or abuse notices, contact us via email.
+      <!-- Contact Channels Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
+        <!-- Email Channel Card -->
+        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4">
+              <Mail class="w-5 h-5" />
+            </div>
+            <h2 class="text-base font-bold text-slate-900 dark:text-white">Email</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-4">
+              Direct email support for general questions, abuse reports, or security disclosures.
             </p>
-
-            <div class="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
-              <div class="flex items-center gap-3 text-xs">
-                <div class="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 shrink-0">
-                  <Mail class="w-4 h-4" />
-                </div>
-                <div class="truncate">
-                  <div class="font-medium text-slate-400 text-[11px]">Email Support</div>
-                  <div class="font-semibold text-slate-900 dark:text-white font-mono">support@pvrge.mail</div>
-                </div>
-              </div>
-
-              <div class="flex items-center gap-3 text-xs">
-                <div class="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 shrink-0">
-                  <Mail class="w-4 h-4" />
-                </div>
-                <div class="truncate">
-                  <div class="font-medium text-slate-400 text-[11px]">Abuse Inquiries</div>
-                  <div class="font-semibold text-slate-900 dark:text-white font-mono">abuse@pvrge.mail</div>
-                </div>
-              </div>
+            <div class="font-mono text-sm font-semibold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/60 px-3 py-2 rounded-xl mb-4 truncate select-all">
+              {{ email }}
             </div>
+          </div>
+
+          <div class="flex items-center gap-2 pt-2">
+            <a
+              :href="`mailto:${email}`"
+              class="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-sm transition active:scale-95"
+            >
+              <Mail class="w-3.5 h-3.5" />
+              <span>Mail Us</span>
+            </a>
+            <button
+              type="button"
+              @click="copyEmail"
+              class="inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/80 transition active:scale-95"
+            >
+              <Check v-if="copied" class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <Copy v-else class="w-3.5 h-3.5" />
+              <span>{{ copied ? 'Copied' : 'Copy' }}</span>
+            </button>
           </div>
         </div>
 
-        <!-- Contact Form -->
-        <div class="md:col-span-3">
-          <div class="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div v-if="submitted" class="text-center py-8 space-y-3">
-              <div class="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
-                <CheckCircle2 class="w-6 h-6" />
-              </div>
-              <h3 class="text-base font-bold text-slate-900 dark:text-white">Message Dispatched</h3>
-              <p class="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                Thank you for contacting us. Your inquiry has been sent to our support desk.
-              </p>
-              <button
-                @click="submitted = false; name = ''; email = ''; message = '';"
-                class="mt-4 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
-              >
-                Send another message
-              </button>
+        <!-- Telegram Channel Card -->
+        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 flex items-center justify-center mb-4">
+              <Send class="w-5 h-5" />
             </div>
+            <h2 class="text-base font-bold text-slate-900 dark:text-white">Telegram</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-4">
+              Connect with our official Telegram bot for quick assistance and updates.
+            </p>
+            <div class="font-mono text-sm font-semibold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/60 px-3 py-2 rounded-xl mb-4 truncate select-all">
+              t.me/pvrgebot
+            </div>
+          </div>
 
-            <form v-else @submit.prevent="handleSubmit" class="space-y-4">
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Your Name
-                </label>
-                <input
-                  v-model="name"
-                  required
-                  type="text"
-                  placeholder="Jane Doe"
-                  class="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Your Email Address
-                </label>
-                <input
-                  v-model="email"
-                  required
-                  type="email"
-                  placeholder="jane@example.com"
-                  class="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Message
-                </label>
-                <textarea
-                  v-model="message"
-                  required
-                  rows="4"
-                  placeholder="Describe your question, issue, or report..."
-                  class="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                ></textarea>
-              </div>
-
-              <button
-                type="submit"
-                class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-md shadow-emerald-500/20 transition active:scale-95"
-              >
-                <Send class="w-3.5 h-3.5" />
-                <span>Send Message</span>
-              </button>
-            </form>
+          <div class="pt-2">
+            <a
+              :href="telegramUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-500 shadow-sm transition active:scale-95"
+            >
+              <ExternalLink class="w-3.5 h-3.5" />
+              <span>Open Telegram</span>
+            </a>
           </div>
         </div>
+      </div>
+
+      <!-- Notice / Footnote (mail.tm style) -->
+      <div class="p-4 sm:p-5 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 flex items-start gap-3 text-amber-900 dark:text-amber-200 text-xs sm:text-sm leading-relaxed">
+        <Info class="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+        <p>
+          <span class="font-bold">Note:</span> pvrge is an ephemeral temporary email service. Incoming messages are permanently deleted after 24 hours. For support inquiries, please contact us from your personal permanent address.
+        </p>
       </div>
     </div>
   </div>

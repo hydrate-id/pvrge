@@ -20,7 +20,9 @@
     }
   ],
   "assets": {
-    "directory": "../frontend/dist"
+    "directory": "../frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
   },
   "triggers": {
     "crons": [
