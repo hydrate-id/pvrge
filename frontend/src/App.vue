@@ -8,6 +8,7 @@ import SignOut from '@primeicons/vue/sign-out';
 import User from '@primeicons/vue/user';
 import SignIn from '@primeicons/vue/sign-in';
 import Trash from '@primeicons/vue/trash';
+import Times from '@primeicons/vue/times';
 
 const route = useRoute();
 const session = useSession();
@@ -160,7 +161,7 @@ onUnmounted(() => {
             class="ml-1 flex h-10 w-10 items-center justify-center rounded-full focus:outline-none text-white"
             @click="mobileMenuOpen = false"
           >
-            <i class="pi pi-times text-lg" />
+            <Times class="size-5" />
           </button>
         </div>
 

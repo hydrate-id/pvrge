@@ -1,6 +1,12 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useSession } from '../composables/useSession';
+import UserPlus from '@primeicons/vue/user-plus';
+import SignIn from '@primeicons/vue/sign-in';
+import Times from '@primeicons/vue/times';
+import ExclamationCircle from '@primeicons/vue/exclamation-circle';
+import Sparkles from '@primeicons/vue/sparkles';
+import Spinner from '@primeicons/vue/spinner';
 
 const props = defineProps({
   isOpen: Boolean,
@@ -108,7 +114,7 @@ async function handleLogin() {
         class="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg transition"
         aria-label="Close modal"
       >
-        <i class="pi pi-times text-base" />
+        <Times class="size-4" />
       </button>
 
       <!-- Tabs header -->
@@ -123,7 +129,7 @@ async function handleLogin() {
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
           ]"
         >
-          <i class="pi pi-user-plus text-sm" />
+          <UserPlus class="size-4 shrink-0" />
           <span>New Account</span>
         </button>
 
@@ -137,14 +143,14 @@ async function handleLogin() {
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
           ]"
         >
-          <i class="pi pi-sign-in text-sm" />
+          <SignIn class="size-4 shrink-0" />
           <span>Log In</span>
         </button>
       </div>
 
       <!-- Error alert -->
       <div v-if="errorMsg" class="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs rounded-lg flex items-center gap-2">
-        <i class="pi pi-exclamation-circle text-sm shrink-0" />
+        <ExclamationCircle class="size-4 shrink-0" />
         <span>{{ errorMsg }}</span>
       </div>
 
@@ -202,8 +208,8 @@ async function handleLogin() {
             :disabled="isSubmitting"
             class="flex items-center gap-2 px-5 py-2.5 bg-lime-600 hover:bg-lime-500 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50 shadow-sm"
           >
-            <i v-if="isSubmitting" class="pi pi-spin pi-spinner text-sm" />
-            <i v-else class="pi pi-sparkles text-sm" />
+            <Spinner v-if="isSubmitting" class="size-4 animate-spin" />
+            <Sparkles v-else class="size-4" />
             <span>{{ isSubmitting ? 'Generating...' : 'Create Inbox' }}</span>
           </button>
         </div>
@@ -250,8 +256,8 @@ async function handleLogin() {
             :disabled="isSubmitting"
             class="flex items-center gap-2 px-5 py-2.5 bg-lime-600 hover:bg-lime-500 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50 shadow-sm"
           >
-            <i v-if="isSubmitting" class="pi pi-spin pi-spinner text-sm" />
-            <i v-else class="pi pi-sign-in text-sm" />
+            <Spinner v-if="isSubmitting" class="size-4 animate-spin" />
+            <SignIn v-else class="size-4 shrink-0" />
             <span>{{ isSubmitting ? 'Authenticating...' : 'Sign In' }}</span>
           </button>
         </div>
