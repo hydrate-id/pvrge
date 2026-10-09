@@ -216,13 +216,52 @@ async function toggleSource() {
 
 function printEmail() {
   showActionsMenu.value = false;
-  const iframe = document.getElementById('iFrameResizer1');
-  if (iframe && iframe.contentWindow) {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-  } else {
+  if (!selectedMessageDetail.value) return;
+
+  const bodyContent = isShowingSource.value
+    ? `<pre style="white-space: pre-wrap; word-break: break-all; font-family: monospace; font-size: 13px; line-height: 1.5;">${(rawSourceText.value || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</pre>`
+    : (selectedMessageDetail.value.body_html || `<pre style="white-space: pre-wrap; font-family: sans-serif; font-size: 14px; line-height: 1.5;">${selectedMessageDetail.value.body_text || ''}</pre>`);
+
+  const printFrame = document.createElement('iframe');
+  printFrame.style.position = 'fixed';
+  printFrame.style.right = '0';
+  printFrame.style.bottom = '0';
+  printFrame.style.width = '0';
+  printFrame.style.height = '0';
+  printFrame.style.border = '0';
+  document.body.appendChild(printFrame);
+
+  const frameDoc = printFrame.contentWindow?.document;
+  if (!frameDoc) {
     window.print();
+    return;
   }
+
+  frameDoc.open();
+  frameDoc.write(`<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>${selectedMessageDetail.value.subject || 'Print Message'}</title>
+    <style>
+      @page { margin: 15mm; }
+      body { margin: 0; padding: 12px; font-family: sans-serif; color: #000; background: #fff; }
+      img { max-width: 100%; height: auto; }
+    </style>
+  </head>
+  <body>
+    ${bodyContent}
+  </body>
+</html>`);
+  frameDoc.close();
+
+  setTimeout(() => {
+    printFrame.contentWindow?.focus();
+    printFrame.contentWindow?.print();
+    setTimeout(() => {
+      document.body.removeChild(printFrame);
+    }, 1000);
+  }, 300);
 }
 
 async function deleteSelectedMessage() {
