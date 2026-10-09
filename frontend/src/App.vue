@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import {
-  Inbox, RefreshCw, Sun, Moon, Copy, Check, Menu, X,
+  Sun, Moon, Copy, Check, Menu, X,
   User, Trash2, Plus, LogIn, Mail
 } from 'lucide-vue-next';
 import { useSession } from './composables/useSession';
@@ -156,109 +156,82 @@ onUnmounted(() => {
 
         <!-- Mobile Brand/Logo -->
         <div class="flex shrink-0 items-center px-4">
-          <router-link to="/" @click="mobileMenuOpen = false" class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-lg bg-lime-500 flex items-center justify-center text-white font-black text-sm shadow-sm">
-              pv
-            </div>
-            <span class="text-xl font-bold tracking-tight text-gray-900 dark:text-white">pvrge</span>
+          <router-link to="/" @click="mobileMenuOpen = false" class="flex items-center gap-2">
+            <span class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">
+              <span class="text-indigo-600 dark:text-indigo-400">pv</span>rge
+            </span>
           </router-link>
         </div>
 
         <!-- Mobile Navigasi -->
-        <nav class="mt-5 flex-1 space-y-1 px-3 overflow-y-auto">
+        <nav class="mt-5 flex-1 space-y-1 px-2 overflow-y-auto">
           <router-link
             to="/"
             @click="mobileMenuOpen = false"
-            :class="[
-              route.path === '/'
-                ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
-              'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition'
-            ]"
+            class="group flex items-center rounded-md px-2 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
+            active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
+            exact-active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
           >
-            <Inbox class="mr-3 h-5 w-5 shrink-0 text-gray-500 group-hover:text-gray-700 dark:text-gray-400" />
-            <span>Inbox</span>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon" class="mr-3 size-6 shrink-0 text-gray-400 group-hover:text-gray-500 dark:text-gray-400 dark:group-hover:text-gray-300">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+            </svg>
+            Inbox
           </router-link>
 
           <button
             type="button"
             @click="handleRefresh(); mobileMenuOpen = false;"
-            class="w-full group flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white transition"
+            class="group flex w-full items-center rounded-md px-2 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
           >
-            <RefreshCw class="mr-3 h-5 w-5 shrink-0 text-gray-500 group-hover:text-gray-700 dark:text-gray-400" :class="{ 'animate-spin': isRefreshing }" />
-            <span>Refresh</span>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon" class="mr-3 size-6 shrink-0 text-gray-400 group-hover:text-gray-500 dark:text-gray-400 dark:group-hover:text-gray-300" :class="{ 'animate-spin': isRefreshing }">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+            Refresh
           </button>
         </nav>
 
-        <!-- Mobile Footer Navigasi -->
-        <div class="border-t border-gray-200 p-4 dark:border-gray-700 space-y-3 shrink-0">
-          <div class="space-y-1">
-            <router-link
-              to="/faq"
-              @click="mobileMenuOpen = false"
-              :class="[
-                route.path === '/faq'
-                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
-                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
-              ]"
-            >
-              FAQ
-            </router-link>
-            <router-link
-              to="/privacy"
-              @click="mobileMenuOpen = false"
-              :class="[
-                route.path === '/privacy'
-                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
-                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
-              ]"
-            >
-              Privacy
-            </router-link>
-            <router-link
-              to="/terms"
-              @click="mobileMenuOpen = false"
-              :class="[
-                route.path === '/terms'
-                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
-                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
-              ]"
-            >
-              Terms
-            </router-link>
-            <router-link
-              to="/contact"
-              @click="mobileMenuOpen = false"
-              :class="[
-                route.path === '/contact'
-                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
-                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
-              ]"
-            >
-              Contacts
-            </router-link>
-          </div>
+        <!-- Mobile Footer Links -->
+        <div class="border-t border-gray-200 p-2 dark:border-gray-700">
+          <router-link
+            to="/faq"
+            @click="mobileMenuOpen = false"
+            class="group flex items-center rounded-md px-3 py-2 text-sm/5 font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
+            active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
+          >
+            FAQ
+          </router-link>
+          <router-link
+            to="/privacy"
+            @click="mobileMenuOpen = false"
+            class="group flex items-center rounded-md px-3 py-2 text-sm/5 font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
+            active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
+          >
+            Privacy
+          </router-link>
+          <router-link
+            to="/terms"
+            @click="mobileMenuOpen = false"
+            class="group flex items-center rounded-md px-3 py-2 text-sm/5 font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
+            active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
+          >
+            Terms
+          </router-link>
+          <router-link
+            to="/contact"
+            @click="mobileMenuOpen = false"
+            class="group flex items-center rounded-md px-3 py-2 text-sm/5 font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
+            active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
+          >
+            Contacts
+          </router-link>
+        </div>
 
-          <!-- Storage indicator -->
-          <div class="pt-2">
-            <div class="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400 mb-1">
-              <span>Storage</span>
-              <span class="font-mono">{{ formattedStorage }} / 40 MB</span>
+        <!-- Mobile Footer Copyright -->
+        <div class="flex shrink-0 border-t border-gray-200 px-4 pt-4 dark:border-gray-700">
+          <div class="mt-8 md:order-1 md:mt-0">
+            <div class="flex flex-col justify-center md:order-2">
+              <p class="text-center text-sm/6 text-gray-500 dark:text-gray-400"> © pvrge </p>
             </div>
-            <div class="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div
-                class="h-full bg-lime-500 rounded-full transition-all duration-300"
-                :style="{ width: storagePercentage + '%' }"
-              ></div>
-            </div>
-          </div>
-
-          <div class="pt-1 text-[11px] text-gray-400 dark:text-gray-500">
-            &copy; pvrge
           </div>
         </div>
       </div>
@@ -267,107 +240,79 @@ onUnmounted(() => {
     <!-- SIDEBAR KIRI (w-64) -->
     <div class="hidden md:flex md:shrink-0">
       <div class="flex w-64 flex-col overflow-y-auto border-r border-gray-200 bg-white pt-5 pb-4 dark:border-gray-700 dark:bg-gray-900">
-        <!-- Brand/Logo (pvrge logo svg / text) -->
+        <!-- Brand/Logo -->
         <div class="flex shrink-0 items-center px-4">
-          <router-link to="/" class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-lg bg-lime-500 flex items-center justify-center text-white font-black text-sm shadow-sm">
-              pv
-            </div>
-            <span class="text-xl font-bold tracking-tight text-gray-900 dark:text-white">pvrge</span>
+          <router-link to="/" class="flex items-center gap-2">
+            <span class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">
+              <span class="text-indigo-600 dark:text-indigo-400">pv</span>rge
+            </span>
           </router-link>
         </div>
 
         <!-- Navigasi: Inbox, Refresh -->
-        <nav class="mt-5 flex-1 space-y-1 px-3">
+        <nav class="mt-5 flex-1 space-y-1 px-2">
           <router-link
             to="/"
-            :class="[
-              route.path === '/'
-                ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
-              'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition'
-            ]"
+            class="group flex items-center rounded-md px-2 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
+            active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
+            exact-active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
           >
-            <Inbox class="mr-3 h-5 w-5 shrink-0 text-gray-500 group-hover:text-gray-700 dark:text-gray-400" />
-            <span>Inbox</span>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon" class="mr-3 size-6 shrink-0 text-gray-400 group-hover:text-gray-500 dark:text-gray-400 dark:group-hover:text-gray-300">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+            </svg>
+            Inbox
           </router-link>
 
           <button
             type="button"
             @click="handleRefresh"
-            class="w-full group flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white transition"
+            class="group flex w-full items-center rounded-md px-2 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
           >
-            <RefreshCw class="mr-3 h-5 w-5 shrink-0 text-gray-500 group-hover:text-gray-700 dark:text-gray-400" :class="{ 'animate-spin': isRefreshing }" />
-            <span>Refresh</span>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon" class="mr-3 size-6 shrink-0 text-gray-400 group-hover:text-gray-500 dark:text-gray-400 dark:group-hover:text-gray-300" :class="{ 'animate-spin': isRefreshing }">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+            Refresh
           </button>
         </nav>
 
-        <!-- Footer Navigasi (border-t) -->
-        <div class="border-t border-gray-200 p-4 dark:border-gray-700 space-y-3 shrink-0">
-          <div class="space-y-1">
-            <router-link
-              to="/faq"
-              :class="[
-                route.path === '/faq'
-                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
-                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
-              ]"
-            >
-              FAQ
-            </router-link>
-            <router-link
-              to="/privacy"
-              :class="[
-                route.path === '/privacy'
-                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
-                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
-              ]"
-            >
-              Privacy
-            </router-link>
-            <router-link
-              to="/terms"
-              :class="[
-                route.path === '/terms'
-                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
-                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
-              ]"
-            >
-              Terms
-            </router-link>
-            <router-link
-              to="/contact"
-              :class="[
-                route.path === '/contact'
-                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
-                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
-              ]"
-            >
-              Contacts
-            </router-link>
-          </div>
+        <!-- Footer Links -->
+        <div class="border-t border-gray-200 p-2 dark:border-gray-700">
+          <router-link
+            to="/faq"
+            class="group flex items-center rounded-md px-3 py-2 text-sm/5 font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
+            active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
+          >
+            FAQ
+          </router-link>
+          <router-link
+            to="/privacy"
+            class="group flex items-center rounded-md px-3 py-2 text-sm/5 font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
+            active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
+          >
+            Privacy
+          </router-link>
+          <router-link
+            to="/terms"
+            class="group flex items-center rounded-md px-3 py-2 text-sm/5 font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
+            active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
+          >
+            Terms
+          </router-link>
+          <router-link
+            to="/contact"
+            class="group flex items-center rounded-md px-3 py-2 text-sm/5 font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
+            active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
+          >
+            Contacts
+          </router-link>
+        </div>
 
-          <!-- Storage indicator -->
-          <div class="pt-2">
-            <div class="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400 mb-1">
-              <span>Storage</span>
-              <span class="font-mono">{{ formattedStorage }} / 40 MB</span>
+        <!-- Footer Copyright -->
+        <div class="flex shrink-0 border-t border-gray-200 px-4 pt-4 dark:border-gray-700">
+          <div class="mt-8 md:order-1 md:mt-0">
+            <div class="flex flex-col justify-center md:order-2">
+              <p class="text-center text-sm/6 text-gray-500 dark:text-gray-400"> © pvrge </p>
             </div>
-            <div class="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div
-                class="h-full bg-lime-500 rounded-full transition-all duration-300"
-                :style="{ width: storagePercentage + '%' }"
-              ></div>
-            </div>
-          </div>
-
-          <!-- Copyright -->
-          <div class="pt-1 text-[11px] text-gray-400 dark:text-gray-500">
-            &copy; pvrge
           </div>
         </div>
       </div>
