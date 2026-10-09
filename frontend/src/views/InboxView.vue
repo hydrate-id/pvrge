@@ -2,7 +2,8 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import {
   Inbox, Trash2, Paperclip, RefreshCw, ChevronLeft,
-  ChevronRight, ArrowDownCircle, FileText, Code2, Loader2
+  ChevronRight, ArrowDownCircle, FileText, Code2, Loader2,
+  Mail
 } from 'lucide-vue-next';
 import { useSession } from '../composables/useSession';
 import EnvelopeIllustration from '../components/EnvelopeIllustration.vue';
@@ -94,7 +95,12 @@ async function fetchMessages(quiet = false) {
     });
     if (!res.ok) throw new Error('Failed to fetch messages');
     const data = await res.json();
-    messages.value = data.messages || [];
+    messages.value = (data.messages || []).map((m) => ({
+      ...m,
+      from_name: m.from_name || m.sender_name || '',
+      from_address: m.from_address || m.sender_email || '',
+      intro: m.intro || m.snippet || '',
+    }));
 
     // Calculate total size for storage indicator
     const totalBytes = messages.value.reduce((acc, m) => acc + (m.size || 0), 0);
@@ -136,9 +142,10 @@ async function fetchMessageDetail(id) {
   }
 }
 
-function selectMessage(msg) {
-  selectedMessageId.value = msg.id;
-  fetchMessageDetail(msg.id);
+function selectMessage(msgOrId) {
+  const id = typeof msgOrId === 'object' && msgOrId !== null ? msgOrId.id : msgOrId;
+  selectedMessageId.value = id;
+  fetchMessageDetail(id);
 }
 
 function deselectMessage() {
@@ -292,79 +299,64 @@ onUnmounted(() => {
   <div v-else class="w-full space-y-4">
     <!-- ================= 1. TAMPILAN LIST (Saat tidak ada email dipilih) ================= -->
     <div v-if="!selectedMessageId">
-      <!-- Header: Inbox -->
-      <div class="mb-4">
-        <h2 class="text-2xl/7 font-bold text-gray-900 dark:text-gray-300">
-          Inbox
-        </h2>
+      <!-- Header -->
+      <div class="mt-2 md:flex md:items-center md:justify-between">
+        <div class="min-w-0 flex-1">
+          <h2 class="text-2xl/7 font-bold text-gray-900 sm:truncate dark:text-gray-300">
+            Inbox
+          </h2>
+        </div>
       </div>
 
-      <!-- Card list: bg-white shadow sm:rounded-md dark:bg-gray-800/75 divide-y divide-gray-200 dark:divide-gray-700/50 -->
-      <div
-        class="overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800/75 divide-y divide-gray-200 dark:divide-gray-700/50"
-      >
-        <div
-          v-for="msg in messages"
-          :key="msg.id"
-          @click="selectMessage(msg)"
-          class="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 transition flex items-center px-4 py-4 sm:px-6 gap-4"
-        >
-          <!-- Tiap email: Avatar initial bulat (size-11 rounded-full bg-lime-200 dark:bg-lime-700) -->
-          <div class="h-11 w-11 rounded-full bg-lime-200 dark:bg-lime-700 text-lime-900 dark:text-lime-100 flex items-center justify-center font-bold text-base shrink-0 select-none">
-            {{ getInitial(msg.sender_name || msg.sender_email) }}
-          </div>
-
-          <!-- Nama pengirim + email, Subjek & Snippet, Waktu relatif -->
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2 truncate">
-                <span
-                  v-if="!readMessageIds.has(msg.id)"
-                  class="w-2 h-2 rounded-full bg-lime-500 shrink-0"
-                  title="Unread"
-                ></span>
-                <span
-                  class="text-sm truncate"
-                  :class="readMessageIds.has(msg.id) ? 'font-medium text-gray-700 dark:text-gray-300' : 'font-bold text-gray-900 dark:text-white'"
-                >
-                  {{ msg.sender_name || msg.sender_email }}
-                </span>
-                <span
-                  v-if="msg.sender_name && msg.sender_email"
-                  class="hidden sm:inline text-xs text-gray-500 dark:text-gray-400 font-mono truncate"
-                >
-                  &lt;{{ msg.sender_email }}&gt;
-                </span>
+      <!-- Card List -->
+      <div class="mt-6 overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800/75">
+        <ul class="divide-y divide-gray-200 dark:divide-gray-700/50">
+          <li v-for="msg in messages" :key="msg.id">
+            <a
+              href="#"
+              @click.prevent="selectMessage(msg.id)"
+              class="group block transition hover:bg-gray-50 focus:outline-none dark:hover:bg-gray-900/50 dark:focus:bg-gray-900/50 cursor-pointer"
+            >
+              <div class="flex items-center p-4 sm:px-6">
+                <div class="flex min-w-0 flex-1 items-center">
+                  <!-- Avatar bulat size-11 bg-lime-200 dark:bg-lime-700 text-[22px] inisial pengirim -->
+                  <div class="shrink-0">
+                    <span class="relative inline-block">
+                      <span class="inline-flex items-center justify-center shrink-0 select-none rounded-full align-middle size-11 text-[22px] bg-lime-200 dark:bg-lime-700 transition">
+                        <span class="truncate leading-none font-medium text-gray-600 group-hover:text-gray-700 dark:text-gray-300 dark:group-hover:text-gray-200">
+                          {{ (msg.from_name || msg.from_address || '?').charAt(0).toUpperCase() }}
+                        </span>
+                      </span>
+                    </span>
+                  </div>
+                  <!-- Grid 2 kolom di md -->
+                  <div class="min-w-0 flex-1 px-4 md:grid md:grid-cols-2 md:gap-4">
+                    <div class="min-w-0 flex-auto">
+                      <div class="truncate text-sm/5 font-medium text-indigo-600 dark:text-indigo-400">
+                        {{ msg.from_name || msg.from_address }}
+                      </div>
+                      <div class="mt-1 flex items-center text-sm/5 text-gray-500 dark:text-gray-400">
+                        <Mail class="mr-1.5 size-4 shrink-0 text-gray-400" />
+                        <span class="truncate">{{ msg.from_address }}</span>
+                      </div>
+                    </div>
+                    <div class="hidden md:block">
+                      <div>
+                        <div class="truncate text-sm/5 text-gray-900 dark:text-gray-300 font-medium">
+                          {{ msg.subject || '(No subject)' }}
+                        </div>
+                        <div class="mt-1 flex items-center truncate text-sm/5 text-gray-400 dark:text-gray-400">
+                          {{ msg.intro || msg.snippet || 'No preview available' }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight class="size-5 text-gray-400" />
               </div>
-
-              <!-- Waktu relatif -->
-              <span class="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-2">
-                {{ formatRelativeTime(msg.received_at) }}
-              </span>
-            </div>
-
-            <!-- Subjek -->
-            <div class="mt-1 flex items-center justify-between">
-              <p
-                class="text-sm truncate"
-                :class="readMessageIds.has(msg.id) ? 'text-gray-700 dark:text-gray-300' : 'font-semibold text-gray-900 dark:text-white'"
-              >
-                {{ msg.subject || '(No Subject)' }}
-              </p>
-            </div>
-
-            <!-- Snippet -->
-            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400 truncate">
-              {{ msg.snippet || 'No message preview available' }}
-            </p>
-          </div>
-
-          <!-- Attachments flag & Chevron icon -->
-          <div class="shrink-0 flex items-center gap-2 text-gray-400">
-            <Paperclip v-if="msg.has_attachments" class="w-4 h-4 text-amber-500" />
-            <ChevronRight class="h-5 w-5" />
-          </div>
-        </div>
+            </a>
+          </li>
+        </ul>
       </div>
     </div>
 
