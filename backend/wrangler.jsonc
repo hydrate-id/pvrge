@@ -19,6 +19,9 @@
       "bucket_name": "pvrge-storage"
     }
   ],
+  "assets": {
+    "directory": "../frontend/dist"
+  },
   "triggers": {
     "crons": [
       "0 * * * *"

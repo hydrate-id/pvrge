@@ -16,7 +16,7 @@ async function getAuthUser(headers: Headers, env: Env) {
   return { id: payload.sub, email: payload.email };
 }
 
-export const app = new Elysia()
+export const app = new Elysia({ aot: false })
   .use(cors())
   .derive(({ request }) => ({
     env: (request as unknown as { env: Env }).env
