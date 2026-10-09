@@ -500,7 +500,7 @@ onUnmounted(() => {
       </div>
 
       <!-- MAIN CONTENT (overflow-y-auto py-6 px-4 sm:px-6 md:px-8) -->
-      <main class="relative z-0 flex-1 overflow-y-auto py-6 px-4 sm:px-6 md:px-8 focus:outline-none">
+      <main class="relative z-0 flex-1 overflow-y-auto py-6 px-4 sm:px-6 md:px-8 focus:outline-none flex flex-col">
         <router-view />
       </main>
     </div>

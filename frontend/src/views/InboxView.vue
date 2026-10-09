@@ -1,10 +1,11 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import {
-  Inbox, Mail, Trash2, Paperclip, RefreshCw, ChevronLeft,
+  Inbox, Trash2, Paperclip, RefreshCw, ChevronLeft,
   ChevronRight, ArrowDownCircle, FileText, Code2, Loader2
 } from 'lucide-vue-next';
 import { useSession } from '../composables/useSession';
+import EnvelopeIllustration from '../components/EnvelopeIllustration.vue';
 
 const session = useSession();
 
@@ -272,7 +273,23 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="w-full space-y-4">
+  <!-- Empty State (Saat tidak ada email dipilih dan inbox kosong) -->
+  <div
+    v-if="!selectedMessageId && messages.length === 0"
+    class="h-full flex-1 flex flex-col items-center justify-center py-12 px-4"
+  >
+    <div class="group relative mx-auto w-fit flex flex-col items-center">
+      <EnvelopeIllustration />
+      <div class="text-center max-w-xl mt-6">
+        <h1 class="text-4xl sm:text-6xl font-bold tracking-tight text-gray-900 dark:text-white">Temp Mail</h1>
+        <p class="text-base sm:text-lg text-gray-600 dark:text-gray-300 mt-4 leading-relaxed">
+          Free temporary email address, ready the moment you open the page, with no sign-up. A disposable inbox that keeps your real email safe from spam and phishing.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div v-else class="w-full space-y-4">
     <!-- ================= 1. TAMPILAN LIST (Saat tidak ada email dipilih) ================= -->
     <div v-if="!selectedMessageId">
       <!-- Header: Inbox -->
@@ -282,32 +299,8 @@ onUnmounted(() => {
         </h2>
       </div>
 
-      <!-- Loading State -->
-      <div
-        v-if="isLoadingList && messages.length === 0"
-        class="overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800/75 p-12 text-center"
-      >
-        <Loader2 class="mx-auto h-8 w-8 animate-spin text-lime-500 mb-2" />
-        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Loading mailbox...</p>
-      </div>
-
-      <!-- Empty State: Belum ada email -->
-      <div
-        v-else-if="messages.length === 0"
-        class="overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800/75 p-12 text-center"
-      >
-        <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-lime-100 dark:bg-lime-900/40 text-lime-600 dark:text-lime-400 mb-4">
-          <Mail class="h-7 w-7" />
-        </div>
-        <h3 class="text-base font-semibold text-gray-900 dark:text-white">Your inbox is empty</h3>
-        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
-          Waiting for incoming emails. Send a message to your address above to view it here.
-        </p>
-      </div>
-
       <!-- Card list: bg-white shadow sm:rounded-md dark:bg-gray-800/75 divide-y divide-gray-200 dark:divide-gray-700/50 -->
       <div
-        v-else
         class="overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800/75 divide-y divide-gray-200 dark:divide-gray-700/50"
       >
         <div
