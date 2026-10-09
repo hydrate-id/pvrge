@@ -24,6 +24,7 @@ const isDeleting = ref(false);
 const isDownloadingAttachment = ref({});
 const showActionsMenu = ref(false);
 const isShowingSource = ref(false);
+const rawSourceText = ref('');
 const viewMode = ref('html'); // 'html' or 'text'
 const readMessageIds = ref(new Set());
 
@@ -156,6 +157,7 @@ function selectMessage(msgOrId) {
   const id = typeof msgOrId === 'object' && msgOrId !== null ? msgOrId.id : msgOrId;
   selectedMessageId.value = id;
   isShowingSource.value = false;
+  rawSourceText.value = '';
   showActionsMenu.value = false;
   fetchMessageDetail(id);
 }
@@ -164,12 +166,13 @@ function deselectMessage() {
   selectedMessageId.value = null;
   selectedMessageDetail.value = null;
   isShowingSource.value = false;
+  rawSourceText.value = '';
   showActionsMenu.value = false;
 }
 
 function downloadEmail() {
   if (!selectedMessageDetail.value) return;
-  const raw = selectedMessageDetail.value.raw_source;
+  const raw = rawSourceText.value || selectedMessageDetail.value.raw_source;
   const content = raw || selectedMessageDetail.value.body_html || selectedMessageDetail.value.body_text || '';
   const filename = `${selectedMessageDetail.value.subject || 'message'}.${raw ? 'eml' : 'html'}`;
   const mimeType = raw ? 'message/rfc822' : 'text/html;charset=utf-8';
@@ -185,9 +188,30 @@ function downloadEmail() {
   showActionsMenu.value = false;
 }
 
-function toggleSource() {
-  isShowingSource.value = !isShowingSource.value;
+async function toggleSource() {
   showActionsMenu.value = false;
+  if (isShowingSource.value) {
+    isShowingSource.value = false;
+    return;
+  }
+
+  const token = session.activeAccount.value?.token;
+  const id = selectedMessageDetail.value?.id;
+  if (token && id) {
+    try {
+      const res = await fetch(`/api/messages/${id}/source`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        rawSourceText.value = await res.text();
+      }
+    } catch (err) {
+      console.error('Failed to fetch message source:', err);
+    }
+  }
+  isShowingSource.value = true;
 }
 
 function printEmail() {
@@ -302,6 +326,8 @@ watch(
   (newId) => {
     selectedMessageId.value = null;
     selectedMessageDetail.value = null;
+    isShowingSource.value = false;
+    rawSourceText.value = '';
     if (newId) {
       fetchMessages(false);
     } else {
@@ -417,6 +443,101 @@ onUnmounted(() => {
       >
         <Spinner class="animate-spin mx-auto text-2xl text-lime-500 mb-2 block" />
         <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Loading message content...</p>
+      </div>
+
+      <div v-if="isShowingSource">
+        <a
+          href="#"
+          @click.prevent="isShowingSource = false"
+          class="flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500 mb-2"
+        >
+          <svg class="mr-1 -ml-1 size-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+          </svg>
+          Back
+        </a>
+
+        <div class="mt-2 md:flex md:items-center md:justify-between">
+          <div class="min-w-0 flex-1">
+            <h1 class="text-2xl/7 font-bold text-gray-900 sm:truncate dark:text-gray-300">Source</h1>
+          </div>
+          <div class="mt-4 flex shrink-0 overflow-y-auto md:mt-0 md:ml-4">
+            <div class="relative">
+              <button
+                type="button"
+                @click="showActionsMenu = !showActionsMenu"
+                class="rounded-md font-medium inline-flex items-center text-sm ring-1 ring-inset ring-gray-200 dark:ring-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 p-1.5 transition"
+              >
+                <EllipsisV class="size-5 shrink-0" />
+              </button>
+
+              <!-- Backdrop for click outside -->
+              <div
+                v-if="showActionsMenu"
+                class="fixed inset-0 z-20"
+                @click="showActionsMenu = false"
+              ></div>
+
+              <!-- Menu actions jika dibuka dari view source -->
+              <div
+                v-if="showActionsMenu"
+                class="absolute right-0 top-full mt-1.5 w-44 rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black/5 dark:ring-gray-700 z-30 py-1 text-sm focus:outline-none"
+              >
+                <!-- Download -->
+                <button
+                  type="button"
+                  @click="downloadEmail"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+                >
+                  <Download class="size-4 shrink-0" />
+                  <span>Download</span>
+                </button>
+
+                <!-- Source -->
+                <button
+                  type="button"
+                  @click="toggleSource"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+                >
+                  <Code class="size-4 shrink-0" />
+                  <span>Source</span>
+                </button>
+
+                <!-- Print -->
+                <button
+                  type="button"
+                  @click="printEmail"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+                >
+                  <Print class="size-4 shrink-0" />
+                  <span>Print</span>
+                </button>
+
+                <!-- Divider -->
+                <div class="-mx-1 my-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+
+                <!-- Delete -->
+                <button
+                  type="button"
+                  @click="() => { showActionsMenu = false; deleteSelectedMessage(); }"
+                  :disabled="isDeleting"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition disabled:opacity-50"
+                >
+                  <Trash class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 overflow-hidden border-b border-gray-200 bg-white px-4 shadow sm:rounded-md sm:px-6 dark:border-gray-900 dark:bg-gray-800/75">
+          <div class="container h-full break-all">
+            <div class="my-4 whitespace-pre-line dark:text-white font-mono text-sm leading-relaxed select-all">
+              {{ rawSourceText }}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div v-else-if="selectedMessageDetail">
@@ -540,10 +661,7 @@ onUnmounted(() => {
           </div>
 
           <div class="px-4 py-5 sm:px-6">
-            <div v-if="isShowingSource" class="h-full">
-              <pre class="p-4 bg-gray-950 text-gray-100 font-mono text-xs overflow-auto rounded max-h-[600px] whitespace-pre-wrap select-all"><code>{{ selectedMessageDetail.raw_source || selectedMessageDetail.body_html || selectedMessageDetail.body_text }}</code></pre>
-            </div>
-            <div v-else class="aspect-h-8 aspect-w-16 h-full">
+            <div class="aspect-h-8 aspect-w-16 h-full">
               <iframe
                 class="w-full min-h-[500px] border-0"
                 :srcdoc="selectedMessageDetail.body_html || selectedMessageDetail.body_text"
