@@ -1,0 +1,211 @@
+import { ref, computed } from 'vue';
+
+const STORAGE_KEY = 'pvrge_sessions';
+
+const accounts = ref([]);
+const activeAccountId = ref(null);
+const isLoading = ref(false);
+const error = ref(null);
+
+function loadSessionsFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.accounts)) {
+        accounts.value = data.accounts;
+      }
+      if (data.activeAccountId) {
+        activeAccountId.value = data.activeAccountId;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse sessions from localStorage:', e);
+  }
+}
+
+function saveSessionsToStorage() {
+  try {
+    const data = {
+      accounts: accounts.value,
+      activeAccountId: activeAccountId.value,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.error('Failed to save sessions to localStorage:', e);
+  }
+}
+
+export function useSession() {
+  const activeAccount = computed(() => {
+    return accounts.value.find((acc) => acc.id === activeAccountId.value) || null;
+  });
+
+  async function createAccount(custom = {}) {
+    isLoading.value = true;
+    error.value = null;
+    try {
+      const payload = {};
+      if (custom.username) payload.username = custom.username;
+      if (custom.domain) payload.domain = custom.domain;
+      if (custom.password) payload.password = custom.password;
+
+      const res = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create account');
+      }
+
+      const newAccount = {
+        id: data.id,
+        email: data.email,
+        password: data.password,
+        token: data.token,
+      };
+
+      // Add to accounts or update
+      const existingIdx = accounts.value.findIndex((a) => a.id === newAccount.id);
+      if (existingIdx !== -1) {
+        accounts.value[existingIdx] = newAccount;
+      } else {
+        accounts.value.unshift(newAccount);
+      }
+
+      activeAccountId.value = newAccount.id;
+      saveSessionsToStorage();
+      return newAccount;
+    } catch (err) {
+      error.value = err.message;
+      throw err;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function loginAccount({ email, password }) {
+    isLoading.value = true;
+    error.value = null;
+    try {
+      const res = await fetch('/api/auth/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Invalid credentials');
+      }
+
+      const loggedIn = {
+        id: data.account.id,
+        email: data.account.email,
+        password,
+        token: data.token,
+      };
+
+      const existingIdx = accounts.value.findIndex((a) => a.id === loggedIn.id);
+      if (existingIdx !== -1) {
+        accounts.value[existingIdx] = loggedIn;
+      } else {
+        accounts.value.unshift(loggedIn);
+      }
+
+      activeAccountId.value = loggedIn.id;
+      saveSessionsToStorage();
+      return loggedIn;
+    } catch (err) {
+      error.value = err.message;
+      throw err;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  function switchAccount(id) {
+    const target = accounts.value.find((a) => a.id === id);
+    if (target) {
+      activeAccountId.value = target.id;
+      saveSessionsToStorage();
+    }
+  }
+
+  async function deleteAccount(id = null) {
+    const targetId = id || activeAccountId.value;
+    if (!targetId) return;
+
+    const targetAccount = accounts.value.find((a) => a.id === targetId);
+    if (targetAccount?.token) {
+      try {
+        await fetch('/api/accounts/me', {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${targetAccount.token}`,
+          },
+        });
+      } catch (e) {
+        console.warn('Backend delete request failed:', e);
+      }
+    }
+
+    accounts.value = accounts.value.filter((a) => a.id !== targetId);
+
+    if (accounts.value.length > 0) {
+      activeAccountId.value = accounts.value[0].id;
+      saveSessionsToStorage();
+    } else {
+      activeAccountId.value = null;
+      saveSessionsToStorage();
+      // Auto-create new account as requested
+      await createAccount();
+    }
+  }
+
+  async function initSession() {
+    loadSessionsFromStorage();
+
+    // If active account exists but is not in accounts list
+    if (activeAccountId.value && !accounts.value.find((a) => a.id === activeAccountId.value)) {
+      activeAccountId.value = accounts.value.length > 0 ? accounts.value[0].id : null;
+    }
+
+    // If no accounts yet, auto-generate first account
+    if (accounts.value.length === 0 || !activeAccountId.value) {
+      await createAccount();
+    }
+  }
+
+  async function fetchDomains() {
+    try {
+      const res = await fetch('/api/domains');
+      const data = await res.json();
+      return data.domains || [];
+    } catch (e) {
+      console.warn('Failed to fetch domains:', e);
+      return [];
+    }
+  }
+
+  return {
+    accounts,
+    activeAccountId,
+    activeAccount,
+    isLoading,
+    error,
+    initSession,
+    createAccount,
+    loginAccount,
+    switchAccount,
+    deleteAccount,
+    fetchDomains,
+  };
+}
