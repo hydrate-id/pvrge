@@ -1,10 +1,46 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import Header from './components/Header.vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRoute } from 'vue-router';
+import {
+  Inbox, RefreshCw, Sun, Moon, Copy, Check, Menu, X,
+  User, Trash2, Plus, LogIn
+} from 'lucide-vue-next';
 import { useSession } from './composables/useSession';
+import { useTheme } from './composables/useTheme';
+import AccountModal from './components/AccountModal.vue';
 
+const route = useRoute();
 const session = useSession();
+const { isDark, toggleTheme } = useTheme();
+
 const isRefreshing = ref(false);
+const mobileMenuOpen = ref(false);
+const isDropdownOpen = ref(false);
+const dropdownRef = ref(null);
+
+const copiedEmail = ref(false);
+const copiedPassword = ref(false);
+
+const showAccountModal = ref(false);
+const accountModalMode = ref('create');
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+const formattedStorage = computed(() => {
+  return formatBytes(session.storageBytes.value);
+});
+
+const storagePercentage = computed(() => {
+  const max = 40 * 1024 * 1024; // 40 MB
+  const pct = (session.storageBytes.value / max) * 100;
+  return Math.min(100, Math.max(0, pct)).toFixed(1);
+});
 
 async function handleRefresh() {
   isRefreshing.value = true;
@@ -14,19 +50,517 @@ async function handleRefresh() {
   }, 600);
 }
 
+async function copyEmail() {
+  const email = session.activeAccount.value?.email;
+  if (!email) return;
+  try {
+    await navigator.clipboard.writeText(email);
+    copiedEmail.value = true;
+    setTimeout(() => {
+      copiedEmail.value = false;
+    }, 2000);
+  } catch (e) {
+    console.error('Failed to copy email:', e);
+  }
+}
+
+async function copyPassword() {
+  const pwd = session.activeAccount.value?.password;
+  if (!pwd) return;
+  try {
+    await navigator.clipboard.writeText(pwd);
+    copiedPassword.value = true;
+    setTimeout(() => {
+      copiedPassword.value = false;
+    }, 2000);
+  } catch (e) {
+    console.error('Failed to copy password:', e);
+  }
+}
+
+function handleSwitch(id) {
+  session.switchAccount(id);
+  isDropdownOpen.value = false;
+  handleRefresh();
+}
+
+function openCreateModal() {
+  isDropdownOpen.value = false;
+  accountModalMode.value = 'create';
+  showAccountModal.value = true;
+}
+
+function openLoginModal() {
+  isDropdownOpen.value = false;
+  accountModalMode.value = 'login';
+  showAccountModal.value = true;
+}
+
+async function handleDeleteAccount() {
+  isDropdownOpen.value = false;
+  if (confirm('Are you sure you want to delete this account and all its messages?')) {
+    await session.deleteAccount();
+    handleRefresh();
+  }
+}
+
+function handleClickOutside(e) {
+  if (dropdownRef.value && !dropdownRef.value.contains(e.target)) {
+    isDropdownOpen.value = false;
+  }
+}
+
 onMounted(async () => {
   await session.initSession();
+  document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
 });
 </script>
 
 <template>
-  <div class="h-screen w-screen flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
-    <!-- Header with active email, multi-session switch & theme toggle -->
-    <Header :isRefreshing="isRefreshing" @refresh="handleRefresh" />
+  <div class="flex h-screen overflow-hidden bg-gray-100 antialiased dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+    <!-- MOBILE SIDEBAR BACKDROP & DRAWER -->
+    <div
+      v-if="mobileMenuOpen"
+      class="fixed inset-0 z-40 flex md:hidden"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        class="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity"
+        @click="mobileMenuOpen = false"
+      ></div>
 
-    <!-- Main View (Edge-to-Edge Full Screen) -->
-    <main class="flex-1 flex overflow-hidden min-h-0 w-full">
-      <router-view />
-    </main>
+      <div class="relative flex w-full max-w-xs flex-1 flex-col bg-white pt-5 pb-4 dark:bg-gray-900 z-50">
+        <div class="absolute top-0 right-0 -mr-12 pt-2">
+          <button
+            type="button"
+            class="ml-1 flex h-10 w-10 items-center justify-center rounded-full focus:outline-none text-white"
+            @click="mobileMenuOpen = false"
+          >
+            <X class="h-6 w-6" />
+          </button>
+        </div>
+
+        <!-- Mobile Brand/Logo -->
+        <div class="flex shrink-0 items-center px-4">
+          <router-link to="/" @click="mobileMenuOpen = false" class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-lime-500 flex items-center justify-center text-white font-black text-sm shadow-sm">
+              pv
+            </div>
+            <span class="text-xl font-bold tracking-tight text-gray-900 dark:text-white">pvrge</span>
+          </router-link>
+        </div>
+
+        <!-- Mobile Navigasi -->
+        <nav class="mt-5 flex-1 space-y-1 px-3 overflow-y-auto">
+          <router-link
+            to="/"
+            @click="mobileMenuOpen = false"
+            :class="[
+              route.path === '/'
+                ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
+              'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition'
+            ]"
+          >
+            <Inbox class="mr-3 h-5 w-5 shrink-0 text-gray-500 group-hover:text-gray-700 dark:text-gray-400" />
+            <span>Inbox</span>
+          </router-link>
+
+          <button
+            type="button"
+            @click="handleRefresh(); mobileMenuOpen = false;"
+            class="w-full group flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white transition"
+          >
+            <RefreshCw class="mr-3 h-5 w-5 shrink-0 text-gray-500 group-hover:text-gray-700 dark:text-gray-400" :class="{ 'animate-spin': isRefreshing }" />
+            <span>Refresh</span>
+          </button>
+        </nav>
+
+        <!-- Mobile Footer Navigasi -->
+        <div class="border-t border-gray-200 p-4 dark:border-gray-700 space-y-3 shrink-0">
+          <div class="space-y-1">
+            <router-link
+              to="/faq"
+              @click="mobileMenuOpen = false"
+              :class="[
+                route.path === '/faq'
+                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
+                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
+              ]"
+            >
+              FAQ
+            </router-link>
+            <router-link
+              to="/privacy"
+              @click="mobileMenuOpen = false"
+              :class="[
+                route.path === '/privacy'
+                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
+                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
+              ]"
+            >
+              Privacy
+            </router-link>
+            <router-link
+              to="/terms"
+              @click="mobileMenuOpen = false"
+              :class="[
+                route.path === '/terms'
+                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
+                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
+              ]"
+            >
+              Terms
+            </router-link>
+            <router-link
+              to="/contact"
+              @click="mobileMenuOpen = false"
+              :class="[
+                route.path === '/contact'
+                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
+                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
+              ]"
+            >
+              Contacts
+            </router-link>
+          </div>
+
+          <!-- Storage indicator -->
+          <div class="pt-2">
+            <div class="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400 mb-1">
+              <span>Storage</span>
+              <span class="font-mono">{{ formattedStorage }} / 40 MB</span>
+            </div>
+            <div class="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-lime-500 rounded-full transition-all duration-300"
+                :style="{ width: storagePercentage + '%' }"
+              ></div>
+            </div>
+          </div>
+
+          <div class="pt-1 text-[11px] text-gray-400 dark:text-gray-500">
+            &copy; pvrge
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIDEBAR KIRI (w-64) -->
+    <div class="hidden md:flex md:shrink-0">
+      <div class="flex w-64 flex-col overflow-y-auto border-r border-gray-200 bg-white pt-5 pb-4 dark:border-gray-700 dark:bg-gray-900">
+        <!-- Brand/Logo (pvrge logo svg / text) -->
+        <div class="flex shrink-0 items-center px-4">
+          <router-link to="/" class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-lime-500 flex items-center justify-center text-white font-black text-sm shadow-sm">
+              pv
+            </div>
+            <span class="text-xl font-bold tracking-tight text-gray-900 dark:text-white">pvrge</span>
+          </router-link>
+        </div>
+
+        <!-- Navigasi: Inbox, Refresh -->
+        <nav class="mt-5 flex-1 space-y-1 px-3">
+          <router-link
+            to="/"
+            :class="[
+              route.path === '/'
+                ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
+              'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition'
+            ]"
+          >
+            <Inbox class="mr-3 h-5 w-5 shrink-0 text-gray-500 group-hover:text-gray-700 dark:text-gray-400" />
+            <span>Inbox</span>
+          </router-link>
+
+          <button
+            type="button"
+            @click="handleRefresh"
+            class="w-full group flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white transition"
+          >
+            <RefreshCw class="mr-3 h-5 w-5 shrink-0 text-gray-500 group-hover:text-gray-700 dark:text-gray-400" :class="{ 'animate-spin': isRefreshing }" />
+            <span>Refresh</span>
+          </button>
+        </nav>
+
+        <!-- Footer Navigasi (border-t) -->
+        <div class="border-t border-gray-200 p-4 dark:border-gray-700 space-y-3 shrink-0">
+          <div class="space-y-1">
+            <router-link
+              to="/faq"
+              :class="[
+                route.path === '/faq'
+                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
+                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
+              ]"
+            >
+              FAQ
+            </router-link>
+            <router-link
+              to="/privacy"
+              :class="[
+                route.path === '/privacy'
+                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
+                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
+              ]"
+            >
+              Privacy
+            </router-link>
+            <router-link
+              to="/terms"
+              :class="[
+                route.path === '/terms'
+                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
+                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
+              ]"
+            >
+              Terms
+            </router-link>
+            <router-link
+              to="/contact"
+              :class="[
+                route.path === '/contact'
+                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white',
+                'group flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition'
+              ]"
+            >
+              Contacts
+            </router-link>
+          </div>
+
+          <!-- Storage indicator -->
+          <div class="pt-2">
+            <div class="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400 mb-1">
+              <span>Storage</span>
+              <span class="font-mono">{{ formattedStorage }} / 40 MB</span>
+            </div>
+            <div class="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-lime-500 rounded-full transition-all duration-300"
+                :style="{ width: storagePercentage + '%' }"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Copyright -->
+          <div class="pt-1 text-[11px] text-gray-400 dark:text-gray-500">
+            &copy; pvrge
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KONTEN KANAN -->
+    <div class="flex w-0 flex-1 flex-col overflow-hidden">
+      <!-- TOPBAR (h-16 shrink-0 border-b bg-white dark:bg-gray-900) -->
+      <div class="relative flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 px-4 sm:px-6">
+        <!-- Left: Mobile sidebar hamburger button -->
+        <div class="flex items-center md:hidden mr-2">
+          <button
+            type="button"
+            @click="mobileMenuOpen = true"
+            class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none"
+          >
+            <Menu class="h-6 w-6" />
+          </button>
+        </div>
+
+        <!-- Input Email Bar (w-full, readonly, cursor-pointer, select-all, 1-click copy dengan tooltip Copied!) -->
+        <div class="flex-1 max-w-xl pr-2 sm:pr-4">
+          <div class="relative rounded-md shadow-sm">
+            <input
+              type="text"
+              readonly
+              :value="session.activeAccount.value?.email || 'Generating address...'"
+              @click="copyEmail"
+              title="Click to copy address"
+              class="block w-full cursor-pointer rounded-md border-0 py-2 pl-3 pr-10 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-lime-500 dark:bg-gray-800 dark:text-white dark:ring-gray-700 text-xs sm:text-sm font-mono select-all transition"
+            />
+            <button
+              type="button"
+              @click="copyEmail"
+              class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              title="Click to copy email address"
+            >
+              <Check v-if="copiedEmail" class="h-4 w-4 text-lime-500" />
+              <Copy v-else class="h-4 w-4" />
+            </button>
+
+            <!-- Copied Tooltip Badge -->
+            <transition
+              enter-active-class="transition duration-150 ease-out"
+              enter-from-class="opacity-0 translate-y-1"
+              enter-to-class="opacity-100 translate-y-0"
+              leave-active-class="transition duration-100 ease-in"
+              leave-from-class="opacity-100 translate-y-0"
+              leave-to-class="opacity-0 translate-y-1"
+            >
+              <div
+                v-if="copiedEmail"
+                class="absolute -bottom-8 left-1/2 -translate-x-1/2 rounded bg-gray-900 px-2.5 py-0.5 text-[11px] font-semibold text-white shadow dark:bg-white dark:text-gray-900 z-50 pointer-events-none"
+              >
+                Copied!
+              </div>
+            </transition>
+          </div>
+        </div>
+
+        <!-- Right Controls: Theme toggle, Account dropdown trigger, Sign out / Delete account quick button -->
+        <div class="flex items-center gap-1 sm:gap-2 shrink-0">
+          <!-- Theme toggle -->
+          <button
+            @click="toggleTheme"
+            class="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 transition"
+            :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+          >
+            <Sun v-if="isDark" class="h-5 w-5 text-amber-400" />
+            <Moon v-else class="h-5 w-5 text-gray-500" />
+          </button>
+
+          <!-- Account dropdown trigger & popper -->
+          <div class="relative" ref="dropdownRef">
+            <button
+              @click="isDropdownOpen = !isDropdownOpen"
+              class="flex items-center gap-1 rounded-full p-1.5 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition"
+              title="Manage Account"
+            >
+              <div class="relative flex items-center justify-center">
+                <User class="h-5 w-5" />
+                <span class="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-lime-600 text-[10px] font-bold text-white shadow-sm">
+                  {{ session.accounts.value.length || 1 }}
+                </span>
+              </div>
+            </button>
+
+            <!-- Account Dropdown Popper (Persis mail.tm) -->
+            <transition
+              enter-active-class="transition duration-150 ease-out"
+              enter-from-class="transform opacity-0 scale-95"
+              enter-to-class="transform opacity-100 scale-100"
+              leave-active-class="transition duration-100 ease-in"
+              leave-from-class="transform opacity-100 scale-100"
+              leave-to-class="transform opacity-0 scale-95"
+            >
+              <div
+                v-if="isDropdownOpen"
+                class="absolute right-0 top-full mt-2 w-80 rounded-xl bg-white p-4 shadow-xl ring-1 ring-black/5 dark:bg-gray-800 dark:ring-white/10 z-50 text-xs"
+              >
+                <!-- Header: Signed in as & Password -->
+                <div class="border-b border-gray-200 pb-3 dark:border-gray-700">
+                  <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                    You are signed in as:
+                  </p>
+                  <p class="text-xs font-semibold text-gray-900 dark:text-white truncate font-mono mt-0.5">
+                    {{ session.activeAccount.value?.email || 'No account' }}
+                  </p>
+
+                  <div class="mt-2.5 flex items-center justify-between text-xs">
+                    <span class="text-gray-500 dark:text-gray-400">Password:</span>
+                    <div class="relative flex items-center gap-1.5">
+                      <span
+                        @click="copyPassword"
+                        title="Click to copy password"
+                        class="account-blur font-mono cursor-pointer select-all font-medium text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700/60 px-2 py-0.5 rounded transition"
+                      >
+                        {{ session.activeAccount.value?.password || '••••••••' }}
+                      </span>
+                      <span v-if="copiedPassword" class="text-[10px] font-bold text-lime-600 dark:text-lime-400 animate-pulse">
+                        Copied!
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Daftar akun tersimpan untuk switch akun (if multiple) -->
+                <div v-if="session.accounts.value.length > 1" class="py-2.5 border-b border-gray-200 dark:border-gray-700">
+                  <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                    Switch Account
+                  </p>
+                  <div class="space-y-1 max-h-36 overflow-y-auto">
+                    <button
+                      v-for="acc in session.accounts.value"
+                      :key="acc.id"
+                      @click="handleSwitch(acc.id)"
+                      class="w-full text-left px-2 py-1.5 rounded-md flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                      :class="[
+                        acc.id === session.activeAccountId.value
+                          ? 'font-semibold text-lime-600 dark:text-lime-400 bg-gray-50 dark:bg-gray-700/50'
+                          : 'text-gray-700 dark:text-gray-300'
+                      ]"
+                    >
+                      <span class="truncate font-mono text-[11px]">{{ acc.email }}</span>
+                      <Check v-if="acc.id === session.activeAccountId.value" class="w-3.5 h-3.5 shrink-0 text-lime-500" />
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Opsi: Create an account, Log in, Delete account -->
+                <div class="pt-2 space-y-1">
+                  <button
+                    @click="openCreateModal"
+                    class="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium transition"
+                  >
+                    <Plus class="w-4 h-4 text-lime-500" />
+                    <span>Create an account</span>
+                  </button>
+
+                  <button
+                    @click="openLoginModal"
+                    class="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium transition"
+                  >
+                    <LogIn class="w-4 h-4 text-sky-500" />
+                    <span>Log in</span>
+                  </button>
+
+                  <button
+                    @click="handleDeleteAccount"
+                    class="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2 text-red-600 dark:text-red-400 font-medium transition"
+                  >
+                    <Trash2 class="w-4 h-4" />
+                    <span>Delete account</span>
+                  </button>
+                </div>
+              </div>
+            </transition>
+          </div>
+
+          <!-- Sign out / Delete account quick button -->
+          <button
+            @click="handleDeleteAccount"
+            title="Delete active account"
+            class="rounded-full p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
+          >
+            <Trash2 class="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      <!-- MAIN CONTENT (overflow-y-auto py-6 px-4 sm:px-6 md:px-8) -->
+      <main class="relative z-0 flex-1 overflow-y-auto py-6 px-4 sm:px-6 md:px-8 focus:outline-none">
+        <router-view />
+      </main>
+    </div>
+
+    <!-- Modals -->
+    <AccountModal
+      :isOpen="showAccountModal"
+      :initialMode="accountModalMode"
+      @close="showAccountModal = false"
+      @account-ready="handleRefresh"
+    />
   </div>
 </template>

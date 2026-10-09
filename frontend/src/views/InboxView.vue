@@ -1,9 +1,8 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { 
-  Inbox, Mail, Trash2, Paperclip, RefreshCw, ChevronLeft, 
-  Clock, ArrowDownCircle, FileText, Code2, 
-  Loader2, Calendar, User, AtSign
+import {
+  Inbox, Mail, Trash2, Paperclip, RefreshCw, ChevronLeft,
+  ChevronRight, ArrowDownCircle, FileText, Code2, Loader2
 } from 'lucide-vue-next';
 import { useSession } from '../composables/useSession';
 
@@ -39,7 +38,12 @@ function markAsRead(id) {
   }
 }
 
-// Format relative time: "just now", "5m ago", "2h ago", "3d ago"
+function getInitial(sender) {
+  if (!sender) return 'U';
+  const clean = sender.trim().replace(/^["'<]+/, '');
+  return clean ? clean.charAt(0).toUpperCase() : 'U';
+}
+
 function formatRelativeTime(dateStr) {
   if (!dateStr) return '';
   const date = new Date(dateStr);
@@ -56,7 +60,6 @@ function formatRelativeTime(dateStr) {
   return `${diffDay}d ago`;
 }
 
-// Format full date: "Oct 9, 2026, 11:45 AM"
 function formatFullDate(dateStr) {
   if (!dateStr) return '';
   try {
@@ -77,7 +80,6 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-// Fetch messages list
 async function fetchMessages(quiet = false) {
   const token = session.activeAccount.value?.token;
   if (!token) return;
@@ -93,8 +95,12 @@ async function fetchMessages(quiet = false) {
     const data = await res.json();
     messages.value = data.messages || [];
 
+    // Calculate total size for storage indicator
+    const totalBytes = messages.value.reduce((acc, m) => acc + (m.size || 0), 0);
+    session.setStorageBytes(totalBytes);
+
     // If selected message is no longer in list, clear selection
-    if (selectedMessageId.value && !messages.value.find(m => m.id === selectedMessageId.value)) {
+    if (selectedMessageId.value && !messages.value.find((m) => m.id === selectedMessageId.value)) {
       selectedMessageId.value = null;
       selectedMessageDetail.value = null;
     }
@@ -105,7 +111,6 @@ async function fetchMessages(quiet = false) {
   }
 }
 
-// Fetch message detail
 async function fetchMessageDetail(id) {
   const token = session.activeAccount.value?.token;
   if (!token || !id) return;
@@ -121,7 +126,6 @@ async function fetchMessageDetail(id) {
     const data = await res.json();
     selectedMessageDetail.value = data.message;
     markAsRead(id);
-    // Default view mode based on presence of HTML
     viewMode.value = data.message.body_html ? 'html' : 'text';
   } catch (err) {
     console.error('Error fetching message detail:', err);
@@ -141,7 +145,6 @@ function deselectMessage() {
   selectedMessageDetail.value = null;
 }
 
-// Delete message
 async function deleteSelectedMessage() {
   const token = session.activeAccount.value?.token;
   const id = selectedMessageId.value;
@@ -159,7 +162,9 @@ async function deleteSelectedMessage() {
     });
     if (!res.ok) throw new Error('Failed to delete message');
 
-    messages.value = messages.value.filter(m => m.id !== id);
+    messages.value = messages.value.filter((m) => m.id !== id);
+    const totalBytes = messages.value.reduce((acc, m) => acc + (m.size || 0), 0);
+    session.setStorageBytes(totalBytes);
     deselectMessage();
   } catch (err) {
     alert('Failed to delete message: ' + err.message);
@@ -168,7 +173,6 @@ async function deleteSelectedMessage() {
   }
 }
 
-// Download attachment securely via authenticated blob fetch
 async function downloadAttachment(att) {
   const token = session.activeAccount.value?.token;
   const msgId = selectedMessageId.value;
@@ -199,7 +203,6 @@ async function downloadAttachment(att) {
   }
 }
 
-// Computed iframe source content
 const iframeContent = computed(() => {
   if (!selectedMessageDetail.value) return '';
   if (viewMode.value === 'text') {
@@ -208,9 +211,9 @@ const iframeContent = computed(() => {
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; word-break: break-word; padding: 1.5rem; color: #334155; line-height: 1.6; font-size: 14px; } @media (prefers-color-scheme: dark) { body { color: #cbd5e1; background: #0f172a; } }</style></head><body>${escaped}</body></html>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; word-break: break-word; padding: 1.5rem; color: #1e293b; line-height: 1.6; font-size: 14px; } @media (prefers-color-scheme: dark) { body { color: #f1f5f9; background: #0f172a; } }</style></head><body>${escaped}</body></html>`;
   }
-  return selectedMessageDetail.value.body_html || selectedMessageDetail.value.body_text || '<p class="text-slate-400 p-4">No content</p>';
+  return selectedMessageDetail.value.body_html || selectedMessageDetail.value.body_text || '<p class="text-gray-400 p-4">No content</p>';
 });
 
 // Adaptive Polling: 4s active tab, 30s background tab
@@ -229,7 +232,6 @@ function scheduleNextPoll() {
 
 function handleVisibilityChange() {
   if (document.visibilityState === 'visible') {
-    // Immediate refresh on tab focus
     fetchMessages(true);
   }
   scheduleNextPoll();
@@ -239,7 +241,6 @@ function handleExternalRefresh() {
   fetchMessages(false);
 }
 
-// Watch active account switch to reload messages
 watch(
   () => session.activeAccountId.value,
   (newId) => {
@@ -249,6 +250,7 @@ watch(
       fetchMessages(false);
     } else {
       messages.value = [];
+      session.setStorageBytes(0);
     }
   }
 );
@@ -270,310 +272,251 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex-1 flex w-full h-full overflow-hidden">
-    <!-- ================= KOLOM KIRI (SIDEBAR INBOX) ================= -->
-    <aside
-      class="w-full md:w-80 lg:w-96 shrink-0 h-full flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
-      :class="{ 'hidden md:flex': selectedMessageId !== null }"
-    >
-      <!-- Atas: Toolbar Inbox -->
-      <div class="h-12 px-3 sm:px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
+  <div class="max-w-7xl mx-auto space-y-4">
+    <!-- ================= 1. TAMPILAN LIST (Saat tidak ada email dipilih) ================= -->
+    <div v-if="!selectedMessageId">
+      <!-- Header: Inbox -->
+      <div class="mb-4 sm:flex sm:items-center sm:justify-between">
         <div class="flex items-center gap-2">
-          <Inbox class="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+          <h1 class="text-2xl font-bold leading-7 text-gray-900 dark:text-white sm:text-3xl">
             Inbox
-          </h2>
-          <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
+          </h1>
+          <span
+            v-if="messages.length > 0"
+            class="inline-flex items-center rounded-full bg-lime-100 px-2.5 py-0.5 text-xs font-semibold text-lime-800 dark:bg-lime-900/60 dark:text-lime-200"
+          >
             {{ messages.length }}
           </span>
         </div>
 
-        <button
-          @click="fetchMessages(false)"
-          :disabled="isLoadingList"
-          class="p-1.5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-50"
-          title="Refresh messages"
-        >
-          <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': isLoadingList }" />
-        </button>
+        <div class="mt-3 sm:mt-0 flex items-center gap-2">
+          <button
+            @click="fetchMessages(false)"
+            :disabled="isLoadingList"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700/80 transition disabled:opacity-50"
+          >
+            <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': isLoadingList }" />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
-      <!-- Tengah: List item email (scroll independen) -->
-      <div class="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60">
-        <!-- Loading list indicator -->
-        <div v-if="isLoadingList && messages.length === 0" class="p-8 flex flex-col items-center justify-center text-slate-400">
-          <Loader2 class="w-7 h-7 animate-spin text-emerald-500 mb-2" />
-          <p class="text-xs font-medium">Checking mailbox...</p>
-        </div>
+      <!-- Loading State -->
+      <div
+        v-if="isLoadingList && messages.length === 0"
+        class="overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800/75 p-12 text-center"
+      >
+        <Loader2 class="mx-auto h-8 w-8 animate-spin text-lime-500 mb-2" />
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Loading mailbox...</p>
+      </div>
 
-        <!-- Empty state: waiting for emails -->
-        <div 
-          v-else-if="messages.length === 0" 
-          class="h-full min-h-[300px] p-6 flex flex-col items-center justify-center text-center select-none"
+      <!-- Empty State: Belum ada email -->
+      <div
+        v-else-if="messages.length === 0"
+        class="overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800/75 p-12 text-center"
+      >
+        <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-lime-100 dark:bg-lime-900/40 text-lime-600 dark:text-lime-400 mb-4">
+          <Mail class="h-7 w-7" />
+        </div>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-white">Your inbox is empty</h3>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
+          Waiting for incoming emails. Send a message to your address above to view it here.
+        </p>
+      </div>
+
+      <!-- Card list: bg-white shadow sm:rounded-md dark:bg-gray-800/75 divide-y divide-gray-200 dark:divide-gray-700/50 -->
+      <div
+        v-else
+        class="overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800/75 divide-y divide-gray-200 dark:divide-gray-700/50"
+      >
+        <div
+          v-for="msg in messages"
+          :key="msg.id"
+          @click="selectMessage(msg)"
+          class="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 transition flex items-center px-4 py-4 sm:px-6 gap-4"
         >
-          <div class="relative flex items-center justify-center mb-5">
-            <span class="absolute inline-flex h-16 w-16 rounded-full bg-emerald-400/20 dark:bg-emerald-500/20 animate-ping"></span>
-            <span class="absolute inline-flex h-12 w-12 rounded-full bg-emerald-400/30 dark:bg-emerald-500/30 animate-pulse"></span>
-            <div class="relative w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm">
-              <Mail class="w-5 h-5 animate-bounce" />
-            </div>
+          <!-- Tiap email: Avatar initial bulat (size-11 rounded-full bg-lime-200 dark:bg-lime-700) -->
+          <div class="h-11 w-11 rounded-full bg-lime-200 dark:bg-lime-700 text-lime-900 dark:text-lime-100 flex items-center justify-center font-bold text-base shrink-0 select-none">
+            {{ getInitial(msg.sender_name || msg.sender_email) }}
           </div>
-          <h3 class="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1">
-            Waiting for incoming emails...
-          </h3>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400 max-w-[220px] mb-3 leading-relaxed">
-            Send an email to your address above. New emails arrive here automatically.
-          </p>
-          <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/60 dark:border-emerald-900/60">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            Live Polling Active (4s)
-          </div>
-        </div>
 
-        <!-- Email list -->
-        <template v-else>
-          <div
-            v-for="msg in messages"
-            :key="msg.id"
-            @click="selectMessage(msg)"
-            class="p-3 cursor-pointer transition flex flex-col gap-1 group select-none relative"
-            :class="[
-              selectedMessageId === msg.id 
-                ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-l-4 border-l-emerald-600 dark:border-l-emerald-400' 
-                : 'hover:bg-slate-100/70 dark:hover:bg-slate-800/50 border-l-4 border-l-transparent'
-            ]"
-          >
-            <!-- Top Row: Sender & Relative Time -->
-            <div class="flex items-center justify-between gap-2">
-              <div class="flex items-center gap-1.5 truncate">
-                <span 
+          <!-- Nama pengirim + email, Subjek & Snippet, Waktu relatif -->
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 truncate">
+                <span
                   v-if="!readMessageIds.has(msg.id)"
-                  class="w-2 h-2 rounded-full bg-emerald-500 shrink-0" 
+                  class="w-2 h-2 rounded-full bg-lime-500 shrink-0"
                   title="Unread"
                 ></span>
-                <span 
-                  class="text-xs truncate"
-                  :class="readMessageIds.has(msg.id) ? 'font-medium text-slate-600 dark:text-slate-400' : 'font-bold text-slate-900 dark:text-slate-100'"
+                <span
+                  class="text-sm truncate"
+                  :class="readMessageIds.has(msg.id) ? 'font-medium text-gray-700 dark:text-gray-300' : 'font-bold text-gray-900 dark:text-white'"
                 >
-                  {{ msg.sender_name || msg.sender_email || 'Unknown Sender' }}
+                  {{ msg.sender_name || msg.sender_email }}
+                </span>
+                <span
+                  v-if="msg.sender_name && msg.sender_email"
+                  class="hidden sm:inline text-xs text-gray-500 dark:text-gray-400 font-mono truncate"
+                >
+                  &lt;{{ msg.sender_email }}&gt;
                 </span>
               </div>
 
-              <span class="text-[10px] text-slate-400 dark:text-slate-500 shrink-0 font-medium">
+              <!-- Waktu relatif -->
+              <span class="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-2">
                 {{ formatRelativeTime(msg.received_at) }}
               </span>
             </div>
 
-            <!-- Subject -->
-            <div 
-              class="text-xs truncate"
-              :class="readMessageIds.has(msg.id) ? 'text-slate-700 dark:text-slate-300' : 'font-semibold text-slate-900 dark:text-slate-50'"
-            >
-              {{ msg.subject || '(No Subject)' }}
+            <!-- Subjek -->
+            <div class="mt-1 flex items-center justify-between">
+              <p
+                class="text-sm truncate"
+                :class="readMessageIds.has(msg.id) ? 'text-gray-700 dark:text-gray-300' : 'font-semibold text-gray-900 dark:text-white'"
+              >
+                {{ msg.subject || '(No Subject)' }}
+              </p>
             </div>
 
             <!-- Snippet -->
-            <div class="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 leading-normal">
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400 truncate">
               {{ msg.snippet || 'No message preview available' }}
-            </div>
-
-            <!-- Badges footer -->
-            <div class="flex items-center justify-between mt-0.5">
-              <div class="flex items-center gap-1">
-                <span
-                  v-if="msg.has_attachments"
-                  class="inline-flex items-center gap-1 px-1 py-0.2 rounded text-[9px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
-                >
-                  <Paperclip class="w-2.5 h-2.5" />
-                  Attachment
-                </span>
-              </div>
-              <div class="flex items-center gap-1 text-[9px] text-slate-400">
-                <Clock class="w-2.5 h-2.5" />
-                <span>24h purge</span>
-              </div>
-            </div>
+            </p>
           </div>
-        </template>
-      </div>
 
-      <!-- Bawah: Compact footer links persis seperti penempatan footer di sidebar mail.tm -->
-      <div class="shrink-0 border-t border-slate-200 dark:border-slate-800 p-2 text-xs text-slate-400 bg-slate-50 dark:bg-slate-950 flex items-center justify-between">
-        <nav class="flex items-center gap-2 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-          <router-link to="/faq" class="hover:text-emerald-600 dark:hover:text-emerald-400 transition">FAQ</router-link>
-          <span>•</span>
-          <router-link to="/privacy" class="hover:text-emerald-600 dark:hover:text-emerald-400 transition">Privacy</router-link>
-          <span>•</span>
-          <router-link to="/terms" class="hover:text-emerald-600 dark:hover:text-emerald-400 transition">Terms</router-link>
-          <span>•</span>
-          <router-link to="/contact" class="hover:text-emerald-600 dark:hover:text-emerald-400 transition">Contact</router-link>
-        </nav>
-        <span class="text-[10px] text-slate-400 font-medium">pvrge</span>
-      </div>
-    </aside>
-
-    <!-- ================= KOLOM KANAN (VIEWER DETAIL EMAIL) ================= -->
-    <main
-      class="flex-1 h-full flex flex-col min-w-0 bg-white dark:bg-slate-900 overflow-hidden"
-      :class="{ 'hidden md:flex': selectedMessageId === null }"
-    >
-      <!-- State: No Message Selected -->
-      <div 
-        v-if="!selectedMessageId" 
-        class="flex-1 h-full flex flex-col items-center justify-center p-8 text-center text-slate-400 select-none"
-      >
-        <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-3">
-          <Mail class="w-8 h-8 text-slate-400 dark:text-slate-500" />
+          <!-- Attachments flag & Chevron icon -->
+          <div class="shrink-0 flex items-center gap-2 text-gray-400">
+            <Paperclip v-if="msg.has_attachments" class="w-4 h-4 text-amber-500" />
+            <ChevronRight class="h-5 w-5" />
+          </div>
         </div>
-        <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300">
-          No Message Selected
-        </h3>
-        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
-          Select an email from the left sidebar to preview its contents, verify links, and download attachments.
-        </p>
+      </div>
+    </div>
+
+    <!-- ================= 2. TAMPILAN DETAIL (Saat email diklik) ================= -->
+    <div v-else class="space-y-4">
+      <!-- Tombol < Back to Inbox -->
+      <div>
+        <button
+          @click="deselectMessage"
+          class="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition"
+        >
+          <ChevronLeft class="h-5 w-5" />
+          <span>Back to Inbox</span>
+        </button>
       </div>
 
-      <!-- State: Loading Message Detail -->
-      <div 
-        v-else-if="isLoadingDetail" 
-        class="flex-1 h-full flex flex-col items-center justify-center p-8 text-center text-slate-400"
+      <!-- Loading Detail State -->
+      <div
+        v-if="isLoadingDetail"
+        class="overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800/75 p-12 text-center"
       >
-        <Loader2 class="w-8 h-8 animate-spin text-emerald-500 mb-2" />
-        <p class="text-xs font-medium">Loading message content...</p>
+        <Loader2 class="mx-auto h-8 w-8 animate-spin text-lime-500 mb-2" />
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Loading message content...</p>
       </div>
 
-      <!-- State: Message Detail View -->
-      <div v-else-if="selectedMessageDetail" class="flex-1 h-full flex flex-col min-w-0 overflow-hidden">
-        <!-- Header email (Subject, From, To, Date, toggle HTML/Text, Delete button, attachments chips) -->
-        <div class="shrink-0 p-3 sm:p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3">
-          
-          <!-- Action Top Bar -->
-          <div class="flex items-center justify-between gap-2">
-            <!-- Mobile Back Button -->
-            <button
-              @click="deselectMessage"
-              class="md:hidden flex items-center gap-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition"
-            >
-              <ChevronLeft class="w-4 h-4" />
-              <span>Back to list</span>
-            </button>
+      <!-- Card detail email -->
+      <div
+        v-else-if="selectedMessageDetail"
+        class="overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800/75"
+      >
+        <!-- Header detail: Subjek besar, info pengirim & penerima, attachments, tombol Delete -->
+        <div class="border-b border-gray-200 dark:border-gray-700/60 px-4 py-5 sm:px-6 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div class="space-y-1">
+              <h2 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white leading-snug">
+                {{ selectedMessageDetail.subject || '(No Subject)' }}
+              </h2>
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400 pt-1">
+                <div>
+                  <span class="font-medium text-gray-700 dark:text-gray-300">From:</span>
+                  <span class="ml-1 font-semibold text-gray-900 dark:text-white">
+                    {{ selectedMessageDetail.sender_name ? `${selectedMessageDetail.sender_name} <${selectedMessageDetail.sender_email}>` : selectedMessageDetail.sender_email }}
+                  </span>
+                </div>
+                <div>
+                  <span class="font-medium text-gray-700 dark:text-gray-300">To:</span>
+                  <span class="ml-1 font-mono text-gray-900 dark:text-white">{{ session.activeAccount.value?.email }}</span>
+                </div>
+                <div>
+                  <span class="font-medium text-gray-700 dark:text-gray-300">Date:</span>
+                  <span class="ml-1">{{ formatFullDate(selectedMessageDetail.received_at) }}</span>
+                </div>
+              </div>
+            </div>
 
-            <div class="flex-1 md:block hidden"></div>
-
-            <div class="flex items-center gap-2">
-              <!-- HTML / Text Toggle -->
-              <div class="inline-flex p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-xs">
+            <!-- Controls: Toggle HTML/Text, Tombol Delete -->
+            <div class="flex items-center gap-2 shrink-0">
+              <!-- View mode toggle -->
+              <div class="inline-flex rounded-md shadow-sm">
                 <button
                   @click="viewMode = 'html'"
-                  :class="[
-                    viewMode === 'html' 
-                      ? 'bg-white dark:bg-slate-700 font-semibold text-slate-900 dark:text-white shadow-sm' 
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                  ]"
-                  class="px-2.5 py-1 rounded-md transition flex items-center gap-1"
+                  :class="viewMode === 'html' ? 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'"
+                  class="px-2.5 py-1.5 text-xs font-medium rounded-l-md border border-gray-300 dark:border-gray-600 transition flex items-center gap-1"
                 >
                   <Code2 class="w-3.5 h-3.5" />
                   <span>HTML</span>
                 </button>
                 <button
                   @click="viewMode = 'text'"
-                  :class="[
-                    viewMode === 'text' 
-                      ? 'bg-white dark:bg-slate-700 font-semibold text-slate-900 dark:text-white shadow-sm' 
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                  ]"
-                  class="px-2.5 py-1 rounded-md transition flex items-center gap-1"
+                  :class="viewMode === 'text' ? 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'"
+                  class="px-2.5 py-1.5 text-xs font-medium rounded-r-md border-t border-b border-r border-gray-300 dark:border-gray-600 transition flex items-center gap-1"
                 >
                   <FileText class="w-3.5 h-3.5" />
                   <span>Text</span>
                 </button>
               </div>
 
-              <!-- Delete Message Button -->
+              <!-- Tombol Delete -->
               <button
                 @click="deleteSelectedMessage"
                 :disabled="isDeleting"
-                class="p-2 sm:px-3 sm:py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-900 transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
-                title="Delete message"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-300 border border-red-200 dark:border-red-800 transition disabled:opacity-50"
               >
-                <Trash2 class="w-4 h-4" />
-                <span class="hidden sm:inline">{{ isDeleting ? 'Deleting...' : 'Delete' }}</span>
+                <Trash2 class="w-3.5 h-3.5" />
+                <span>{{ isDeleting ? 'Deleting...' : 'Delete' }}</span>
               </button>
             </div>
           </div>
 
-          <!-- Subject & Meta info -->
-          <div class="space-y-2">
-            <h1 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-snug break-words">
-              {{ selectedMessageDetail.subject || '(No Subject)' }}
-            </h1>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/40 p-2.5 sm:p-3 rounded-xl border border-slate-100 dark:border-slate-800">
-              <div class="flex items-center gap-2 truncate">
-                <User class="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span class="font-medium text-slate-500 dark:text-slate-400">From:</span>
-                <span class="font-semibold text-slate-800 dark:text-slate-200 truncate">
-                  {{ selectedMessageDetail.sender_name ? `${selectedMessageDetail.sender_name} <${selectedMessageDetail.sender_email}>` : selectedMessageDetail.sender_email }}
-                </span>
-              </div>
-
-              <div class="flex items-center gap-2 truncate sm:justify-end">
-                <Calendar class="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span class="font-medium text-slate-500 dark:text-slate-400">Date:</span>
-                <span class="text-slate-800 dark:text-slate-200 font-medium">
-                  {{ formatFullDate(selectedMessageDetail.received_at) }}
-                </span>
-              </div>
-
-              <div class="flex items-center gap-2 truncate sm:col-span-2">
-                <AtSign class="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span class="font-medium text-slate-500 dark:text-slate-400">To:</span>
-                <span class="font-mono text-slate-700 dark:text-slate-300 truncate">
-                  {{ session.activeAccount.value?.email }}
-                </span>
-              </div>
+          <!-- Attachments (jika ada) -->
+          <div
+            v-if="selectedMessageDetail.attachments && selectedMessageDetail.attachments.length > 0"
+            class="pt-3 border-t border-gray-100 dark:border-gray-700"
+          >
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+              <Paperclip class="w-3.5 h-3.5" />
+              <span>Attachments ({{ selectedMessageDetail.attachments.length }})</span>
+            </p>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="att in selectedMessageDetail.attachments"
+                :key="att.id"
+                @click="downloadAttachment(att)"
+                :disabled="isDownloadingAttachment[att.id]"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-600 transition disabled:opacity-50"
+                :title="`Download ${att.filename}`"
+              >
+                <Loader2 v-if="isDownloadingAttachment[att.id]" class="w-3.5 h-3.5 animate-spin text-lime-500" />
+                <ArrowDownCircle v-else class="w-3.5 h-3.5 text-lime-600 dark:text-lime-400" />
+                <span class="max-w-[150px] truncate">{{ att.filename }}</span>
+                <span class="text-gray-400 text-[10px]">({{ formatBytes(att.size) }})</span>
+              </button>
             </div>
-
-            <!-- Attachments chips -->
-            <div 
-              v-if="selectedMessageDetail.attachments && selectedMessageDetail.attachments.length > 0" 
-              class="pt-0.5"
-            >
-              <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                <Paperclip class="w-3.5 h-3.5" />
-                <span>Attachments ({{ selectedMessageDetail.attachments.length }})</span>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  v-for="att in selectedMessageDetail.attachments"
-                  :key="att.id"
-                  @click="downloadAttachment(att)"
-                  :disabled="isDownloadingAttachment[att.id]"
-                  class="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition active:scale-95 disabled:opacity-50"
-                  :title="`Download ${att.filename}`"
-                >
-                  <Loader2 v-if="isDownloadingAttachment[att.id]" class="w-3.5 h-3.5 animate-spin text-emerald-500" />
-                  <ArrowDownCircle v-else class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  <span class="truncate max-w-[180px]">{{ att.filename }}</span>
-                  <span class="text-[10px] text-slate-400">({{ formatBytes(att.size) }})</span>
-                </button>
-              </div>
-            </div>
-
           </div>
         </div>
 
-        <!-- Bawah: Sandboxed iframe yang mengisi sisa tinggi secara vertikal -->
-        <div class="flex-1 w-full h-full min-h-0 relative bg-white overflow-hidden">
+        <!-- Sandboxed Iframe untuk body email -->
+        <div class="p-4 sm:p-6 bg-white min-h-[500px]">
           <iframe
             sandbox="allow-popups allow-popups-to-escape-sandbox"
             :srcdoc="iframeContent"
-            class="flex-1 w-full h-full border-0 bg-white"
-            title="Email Message Content"
+            class="w-full min-h-[500px] border-0"
+            title="Email Message Body"
           ></iframe>
         </div>
-
       </div>
-    </main>
+    </div>
   </div>
 </template>

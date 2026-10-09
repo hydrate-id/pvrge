@@ -6,6 +6,7 @@ const accounts = ref([]);
 const activeAccountId = ref(null);
 const isLoading = ref(false);
 const error = ref(null);
+const storageBytes = ref(0);
 
 function loadSessionsFromStorage() {
   try {
@@ -40,6 +41,10 @@ export function useSession() {
   const activeAccount = computed(() => {
     return accounts.value.find((acc) => acc.id === activeAccountId.value) || null;
   });
+
+  function setStorageBytes(bytes) {
+    storageBytes.value = bytes || 0;
+  }
 
   async function createAccount(custom = {}) {
     isLoading.value = true;
@@ -199,8 +204,10 @@ export function useSession() {
     accounts,
     activeAccountId,
     activeAccount,
+    storageBytes,
     isLoading,
     error,
+    setStorageBytes,
     initSession,
     createAccount,
     loginAccount,
