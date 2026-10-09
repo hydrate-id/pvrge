@@ -36,7 +36,7 @@
         </ul>
       </div>
 
-      <div class="mt-9 space-y-3">
+      <div class="mt-4 space-y-2">
         <div>
           <a
             href="mailto:support@pvrge.com"
