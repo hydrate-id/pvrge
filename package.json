@@ -1,0 +1,15 @@
+{
+  "name": "pvrge-monorepo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "backend:dev": "bun --cwd backend dev",
+    "backend:deploy": "bun --cwd backend run deploy",
+    "frontend:dev": "bun --cwd frontend dev",
+    "frontend:build": "bun --cwd frontend build"
+  },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ]
+}
