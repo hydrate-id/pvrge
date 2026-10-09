@@ -3,23 +3,28 @@
 
 <template>
   <div class="w-full space-y-4">
-    <!-- Tombol < Back kembali ke / (Inbox) -->
+    <!-- Tombol Back -->
     <div>
       <router-link
         to="/"
-        class="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition"
+        class="flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500"
       >
-        <i class="pi pi-chevron-left text-sm" />
-        <span>Back</span>
+        <svg class="mr-1 -ml-1 size-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+        </svg>
+        Back
       </router-link>
     </div>
 
-    <!-- Card wrapper persis mail.tm -->
-    <div class="overflow-hidden border-b border-gray-200 bg-white px-4 py-5 shadow sm:rounded-md sm:px-6 dark:border-gray-900 dark:bg-gray-800/75 text-sm text-gray-600 dark:text-gray-300 leading-relaxed space-y-6">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-        Frequently Asked Questions
-      </h1>
+    <div class="mt-2 md:flex md:items-center md:justify-between">
+      <div class="min-w-0 flex-1">
+        <h1 class="text-2xl/7 font-bold text-gray-900 sm:truncate dark:text-gray-300">
+          Frequently Asked Questions
+        </h1>
+      </div>
+    </div>
 
+    <div class="mt-4 overflow-hidden border-b border-gray-200 bg-white px-4 py-5 shadow sm:rounded-md sm:px-6 dark:border-gray-900 dark:bg-gray-800/75 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
       <div class="divide-y divide-gray-200 dark:divide-gray-700/60 space-y-5">
         <div class="pt-2 first:pt-0 space-y-1.5">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">
