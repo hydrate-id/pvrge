@@ -364,7 +364,21 @@ onUnmounted(() => {
                   :value="activeAccount?.email || 'Generating...'"
                   @click="handleCopyEmail"
                 />
-                <span v-if="copied" class="ml-2 text-xs text-indigo-600 dark:text-indigo-400 font-medium whitespace-nowrap">Copied!</span>
+                <transition
+                  enter-active-class="transition duration-150 ease-out"
+                  enter-from-class="opacity-0 -translate-y-1"
+                  enter-to-class="opacity-100 translate-y-0"
+                  leave-active-class="transition duration-100 ease-in"
+                  leave-from-class="opacity-100 translate-y-0"
+                  leave-to-class="opacity-0 -translate-y-1"
+                >
+                  <span
+                    v-if="copied"
+                    class="absolute left-8 top-full mt-1.5 z-50 rounded bg-gray-900 dark:bg-gray-700 px-2 py-0.5 text-xs font-medium text-white shadow-md pointer-events-none"
+                  >
+                    Copied!
+                  </span>
+                </transition>
               </div>
             </div>
           </div>
@@ -375,7 +389,7 @@ onUnmounted(() => {
             <button
               type="button"
               @click="toggleTheme"
-              class="rounded-full p-1 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:hover:text-gray-300"
+              class="rounded-full p-1 text-gray-400 hover:text-gray-500 outline-none focus:outline-none focus:ring-0 active:outline-none dark:hover:text-gray-300"
               :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
             >
               <span class="sr-only">Toggle theme</span>
@@ -393,7 +407,7 @@ onUnmounted(() => {
                 <button
                   type="button"
                   @click="isDropdownOpen = !isDropdownOpen"
-                  class="relative flex max-w-xs items-center rounded-full bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:bg-gray-800"
+                  class="relative flex max-w-xs items-center rounded-full bg-white text-sm outline-none focus:outline-none focus:ring-0 active:outline-none dark:bg-gray-800"
                   id="user-menu-button"
                   aria-expanded="false"
                   aria-haspopup="true"
@@ -499,7 +513,7 @@ onUnmounted(() => {
               type="button"
               @click="handleDeleteAccount"
               title="Delete active account"
-              class="ml-3 rounded-full p-1 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:hover:text-gray-300"
+              class="ml-3 rounded-full p-1 text-gray-400 hover:text-gray-500 outline-none focus:outline-none focus:ring-0 active:outline-none dark:hover:text-gray-300"
             >
               <span class="sr-only">Sign out</span>
               <SignOut class="size-6 text-gray-500 hover:text-purple-600 dark:hover:text-purple-500 cursor-pointer" />
