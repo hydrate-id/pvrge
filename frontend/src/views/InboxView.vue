@@ -281,7 +281,7 @@ onUnmounted(() => {
     <div class="group relative mx-auto w-fit flex flex-col items-center">
       <EnvelopeIllustration />
       <div class="text-center max-w-xl mt-6">
-        <h1 class="text-4xl sm:text-6xl font-bold tracking-tight text-gray-900 dark:text-white">Temp Mail</h1>
+        <h1 class="text-4xl sm:text-6xl font-bold tracking-tight text-gray-900 dark:text-white">pvrge</h1>
         <p class="text-base sm:text-lg text-gray-600 dark:text-gray-300 mt-4 leading-relaxed">
           Free temporary email address, ready the moment you open the page, with no sign-up. A disposable inbox that keeps your real email safe from spam and phishing.
         </p>

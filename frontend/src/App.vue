@@ -13,6 +13,13 @@ const route = useRoute();
 const session = useSession();
 const { isDark, toggleTheme } = useTheme();
 
+const activeAccount = session.activeAccount;
+const accounts = session.accounts;
+
+function handleCopyEmail() {
+  copyEmail(activeAccount.value?.email);
+}
+
 const isRefreshing = ref(false);
 const mobileMenuOpen = ref(false);
 const isDropdownOpen = ref(false);
@@ -320,182 +327,194 @@ onUnmounted(() => {
 
     <!-- KONTEN KANAN -->
     <div class="flex w-0 flex-1 flex-col overflow-hidden">
-      <!-- TOPBAR (h-16 shrink-0 border-b bg-white dark:bg-gray-900) -->
-      <div class="relative flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 px-4 sm:px-6">
-        <!-- Left: Mobile sidebar hamburger button -->
-        <div class="flex items-center md:hidden mr-2">
-          <button
-            type="button"
-            @click="mobileMenuOpen = true"
-            class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none"
-          >
-            <Menu class="h-6 w-6" />
-          </button>
-        </div>
+      <!-- TOPBAR -->
+      <div class="relative z-10 flex h-16 shrink-0 border-b border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <!-- Mobile sidebar hamburger button -->
+        <button
+          type="button"
+          class="border-r border-gray-200 px-4 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 md:hidden dark:border-gray-700 dark:text-gray-400"
+          @click="mobileMenuOpen = true"
+        >
+          <span class="sr-only">Open sidebar</span>
+          <svg class="size-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+          </svg>
+        </button>
 
-        <!-- Top Navbar: Text Clickable Email & Envelope Icon -->
-        <div class="flex-1 max-w-xl pr-2 sm:pr-4">
-          <div class="relative inline-flex items-center">
+        <div class="flex flex-1 justify-between px-4 sm:px-6 md:px-8">
+          <!-- Email Input Container -->
+          <div class="flex flex-1">
+            <div class="flex w-full ring-0 md:ml-0">
+              <label for="Dont_use_WEB_use_API_OK" class="sr-only">Email</label>
+              <div class="group relative w-full text-gray-400 flex items-center">
+                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-1">
+                  <svg class="size-5 text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                  </svg>
+                </div>
+                <input
+                  id="Dont_use_WEB_use_API_OK"
+                  placeholder="..."
+                  class="block size-full cursor-pointer border-transparent py-2 pr-3 pl-8 text-gray-600 select-all group-hover:text-gray-900 focus:border-transparent focus:placeholder-gray-400 focus:ring-0 focus:outline-none sm:text-sm dark:bg-gray-900 dark:text-gray-300 dark:group-hover:text-gray-400 font-mono"
+                  readonly
+                  type="email"
+                  :value="activeAccount?.email || 'Generating...'"
+                  @click="handleCopyEmail"
+                />
+                <span v-if="copied" class="ml-2 text-xs text-indigo-600 dark:text-indigo-400 font-medium whitespace-nowrap">Copied!</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sisi Kanan -->
+          <div class="flex items-center sm:ml-4 md:ml-6">
+            <!-- Dark/Light mode toggle button dengan SVG sun/moon -->
             <button
               type="button"
-              @click="copyEmail(session.activeAccount.value?.email)"
-              class="group flex items-center gap-2 rounded-md px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition cursor-pointer text-left select-none max-w-full"
-              title="Click to copy email address"
+              @click="toggleTheme"
+              class="rounded-full p-1 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:hover:text-gray-300"
+              :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
             >
-              <Mail class="h-4 w-4 shrink-0 text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-200 transition" />
-              <span class="truncate font-mono font-medium text-xs sm:text-sm text-gray-900 dark:text-gray-200">
-                {{ session.activeAccount.value?.email || 'Generating address...' }}
-              </span>
-              <Check v-if="copied" class="h-4 w-4 shrink-0 text-lime-500 ml-0.5" />
-              <Copy v-else class="h-3.5 w-3.5 shrink-0 text-gray-400 opacity-60 group-hover:opacity-100 ml-0.5 transition" />
+              <span class="sr-only">Toggle theme</span>
+              <svg v-if="isDark" class="size-6 text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+              </svg>
+              <svg v-else class="size-6 text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+              </svg>
             </button>
 
-            <!-- Copied Tooltip Badge -->
-            <transition
-              enter-active-class="transition duration-150 ease-out"
-              enter-from-class="opacity-0 translate-y-1"
-              enter-to-class="opacity-100 translate-y-0"
-              leave-active-class="transition duration-100 ease-in"
-              leave-from-class="opacity-100 translate-y-0"
-              leave-to-class="opacity-0 translate-y-1"
-            >
-              <div
-                v-if="copied"
-                class="absolute -bottom-7 left-1/2 -translate-x-1/2 rounded bg-gray-900 px-2 py-0.5 text-[11px] font-semibold text-white shadow dark:bg-white dark:text-gray-900 z-50 pointer-events-none whitespace-nowrap"
-              >
-                Copied!
+            <!-- Account switcher dropdown trigger button dengan avatar bulat menampilkan jumlah sesi (contoh: badge {{ accounts.length }}) -->
+            <div class="relative ml-3" ref="dropdownRef">
+              <div>
+                <button
+                  type="button"
+                  @click="isDropdownOpen = !isDropdownOpen"
+                  class="relative flex max-w-xs items-center rounded-full bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:bg-gray-800"
+                  id="user-menu-button"
+                  aria-expanded="false"
+                  aria-haspopup="true"
+                  title="Manage Accounts"
+                >
+                  <span class="sr-only">Open user menu</span>
+                  <div class="relative flex items-center justify-center">
+                    <span class="inline-flex size-8 items-center justify-center rounded-full bg-gray-500 dark:bg-gray-600 text-white">
+                      <svg class="size-5 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </span>
+                    <span class="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white shadow-sm">
+                      {{ accounts.length || 1 }}
+                    </span>
+                  </div>
+                </button>
               </div>
-            </transition>
-          </div>
-        </div>
 
-        <!-- Right Controls: Theme toggle, Account dropdown trigger, Sign out / Delete account quick button -->
-        <div class="flex items-center gap-1 sm:gap-2 shrink-0">
-          <!-- Theme toggle -->
-          <button
-            @click="toggleTheme"
-            class="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 transition"
-            :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
-          >
-            <Sun v-if="isDark" class="h-5 w-5 text-amber-400" />
-            <Moon v-else class="h-5 w-5 text-gray-500" />
-          </button>
-
-          <!-- Account dropdown trigger & popper -->
-          <div class="relative" ref="dropdownRef">
-            <button
-              @click="isDropdownOpen = !isDropdownOpen"
-              class="flex items-center gap-1 rounded-full p-1.5 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition"
-              title="Manage Account"
-            >
-              <div class="relative flex items-center justify-center">
-                <User class="h-5 w-5" />
-                <span class="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-lime-600 text-[10px] font-bold text-white shadow-sm">
-                  {{ session.accounts.value.length || 1 }}
-                </span>
-              </div>
-            </button>
-
-            <!-- Account Dropdown Popper (Persis mail.tm) -->
-            <transition
-              enter-active-class="transition duration-150 ease-out"
-              enter-from-class="transform opacity-0 scale-95"
-              enter-to-class="transform opacity-100 scale-100"
-              leave-active-class="transition duration-100 ease-in"
-              leave-from-class="transform opacity-100 scale-100"
-              leave-to-class="transform opacity-0 scale-95"
-            >
-              <div
-                v-if="isDropdownOpen"
-                class="absolute right-0 top-full mt-2 w-80 rounded-xl bg-white p-4 shadow-xl ring-1 ring-black/5 dark:bg-gray-800 dark:ring-white/10 z-50 text-xs"
+              <!-- Account Dropdown Popper (Persis mail.tm) -->
+              <transition
+                enter-active-class="transition duration-150 ease-out"
+                enter-from-class="transform opacity-0 scale-95"
+                enter-to-class="transform opacity-100 scale-100"
+                leave-active-class="transition duration-100 ease-in"
+                leave-from-class="transform opacity-100 scale-100"
+                leave-to-class="transform opacity-0 scale-95"
               >
-                <!-- Header: Signed in as & Password -->
-                <div class="border-b border-gray-200 pb-3 dark:border-gray-700">
-                  <p class="text-[11px] text-gray-500 dark:text-gray-400">
-                    You are signed in as:
-                  </p>
-                  <p class="text-xs font-semibold text-gray-900 dark:text-white truncate font-mono mt-0.5">
-                    {{ session.activeAccount.value?.email || 'No account' }}
-                  </p>
+                <div
+                  v-if="isDropdownOpen"
+                  class="absolute right-0 top-full mt-2 w-80 rounded-xl bg-white p-4 shadow-xl ring-1 ring-black/5 dark:bg-gray-800 dark:ring-white/10 z-50 text-xs"
+                >
+                  <!-- Header: Signed in as & Password -->
+                  <div class="border-b border-gray-200 pb-3 dark:border-gray-700">
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                      You are signed in as:
+                    </p>
+                    <p class="text-xs font-semibold text-gray-900 dark:text-white truncate font-mono mt-0.5">
+                      {{ activeAccount?.email || 'No account' }}
+                    </p>
 
-                  <div class="mt-2.5 flex items-center justify-between text-xs">
-                    <span class="text-gray-500 dark:text-gray-400">Password:</span>
-                    <div class="relative flex items-center gap-1.5">
-                      <span
-                        @click="copyPassword"
-                        title="Click to copy password"
-                        class="account-blur font-mono cursor-pointer select-all font-medium text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700/60 px-2 py-0.5 rounded transition"
-                      >
-                        {{ session.activeAccount.value?.password || '••••••••' }}
-                      </span>
-                      <span v-if="copiedPassword" class="text-[10px] font-bold text-lime-600 dark:text-lime-400 animate-pulse">
-                        Copied!
-                      </span>
+                    <div class="mt-2.5 flex items-center justify-between text-xs">
+                      <span class="text-gray-500 dark:text-gray-400">Password:</span>
+                      <div class="relative flex items-center gap-1.5">
+                        <span
+                          @click="copyPassword"
+                          title="Click to copy password"
+                          class="account-blur font-mono cursor-pointer select-all font-medium text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700/60 px-2 py-0.5 rounded transition"
+                        >
+                          {{ activeAccount?.password || '••••••••' }}
+                        </span>
+                        <span v-if="copiedPassword" class="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 animate-pulse">
+                          Copied!
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <!-- Daftar akun tersimpan untuk switch akun (if multiple) -->
-                <div v-if="session.accounts.value.length > 1" class="py-2.5 border-b border-gray-200 dark:border-gray-700">
-                  <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
-                    Switch Account
-                  </p>
-                  <div class="space-y-1 max-h-36 overflow-y-auto">
+                  <!-- Daftar akun tersimpan untuk switch akun (if multiple) -->
+                  <div v-if="accounts.length > 1" class="py-2.5 border-b border-gray-200 dark:border-gray-700">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                      Switch Account
+                    </p>
+                    <div class="space-y-1 max-h-36 overflow-y-auto">
+                      <button
+                        v-for="acc in accounts"
+                        :key="acc.id"
+                        @click="handleSwitch(acc.id)"
+                        class="w-full text-left px-2 py-1.5 rounded-md flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                        :class="[
+                          acc.id === session.activeAccountId.value
+                            ? 'font-semibold text-indigo-600 dark:text-indigo-400 bg-gray-50 dark:bg-gray-700/50'
+                            : 'text-gray-700 dark:text-gray-300'
+                        ]"
+                      >
+                        <span class="truncate font-mono text-[11px]">{{ acc.email }}</span>
+                        <Check v-if="acc.id === session.activeAccountId.value" class="w-3.5 h-3.5 shrink-0 text-indigo-500" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Opsi: Create an account, Log in, Delete account -->
+                  <div class="pt-2 space-y-1">
                     <button
-                      v-for="acc in session.accounts.value"
-                      :key="acc.id"
-                      @click="handleSwitch(acc.id)"
-                      class="w-full text-left px-2 py-1.5 rounded-md flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                      :class="[
-                        acc.id === session.activeAccountId.value
-                          ? 'font-semibold text-lime-600 dark:text-lime-400 bg-gray-50 dark:bg-gray-700/50'
-                          : 'text-gray-700 dark:text-gray-300'
-                      ]"
+                      @click="openCreateModal"
+                      class="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium transition"
                     >
-                      <span class="truncate font-mono text-[11px]">{{ acc.email }}</span>
-                      <Check v-if="acc.id === session.activeAccountId.value" class="w-3.5 h-3.5 shrink-0 text-lime-500" />
+                      <Plus class="w-4 h-4 text-indigo-500" />
+                      <span>Create an account</span>
+                    </button>
+
+                    <button
+                      @click="openLoginModal"
+                      class="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium transition"
+                    >
+                      <LogIn class="w-4 h-4 text-sky-500" />
+                      <span>Log in</span>
+                    </button>
+
+                    <button
+                      @click="handleDeleteAccount"
+                      class="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2 text-red-600 dark:text-red-400 font-medium transition"
+                    >
+                      <Trash2 class="w-4 h-4" />
+                      <span>Delete account</span>
                     </button>
                   </div>
                 </div>
+              </transition>
+            </div>
 
-                <!-- Opsi: Create an account, Log in, Delete account -->
-                <div class="pt-2 space-y-1">
-                  <button
-                    @click="openCreateModal"
-                    class="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium transition"
-                  >
-                    <Plus class="w-4 h-4 text-lime-500" />
-                    <span>Create an account</span>
-                  </button>
-
-                  <button
-                    @click="openLoginModal"
-                    class="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium transition"
-                  >
-                    <LogIn class="w-4 h-4 text-sky-500" />
-                    <span>Log in</span>
-                  </button>
-
-                  <button
-                    @click="handleDeleteAccount"
-                    class="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2 text-red-600 dark:text-red-400 font-medium transition"
-                  >
-                    <Trash2 class="w-4 h-4" />
-                    <span>Delete account</span>
-                  </button>
-                </div>
-              </div>
-            </transition>
+            <!-- Sign out button (ikon arrow-right-start-on-rectangle) untuk menghapus/logout akun aktif -->
+            <button
+              type="button"
+              @click="handleDeleteAccount"
+              title="Delete active account"
+              class="ml-3 rounded-full p-1 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:hover:text-gray-300"
+            >
+              <span class="sr-only">Sign out</span>
+              <svg class="size-6 text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H15" />
+              </svg>
+            </button>
           </div>
-
-          <!-- Sign out / Delete account quick button -->
-          <button
-            @click="handleDeleteAccount"
-            title="Delete active account"
-            class="rounded-full p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
-          >
-            <Trash2 class="h-5 w-5" />
-          </button>
         </div>
       </div>
 
