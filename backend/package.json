@@ -1,0 +1,20 @@
+{
+  "name": "pvrge-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@elysiajs/cors": "^1.2.0",
+    "elysia": "^1.2.10",
+    "postal-mime": "^2.3.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250224.0",
+    "typescript": "^5.7.3",
+    "wrangler": "^3.111.0"
+  }
+}

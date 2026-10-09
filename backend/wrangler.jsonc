@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pvrge-backend",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "pvrge-db",
+      "database_id": "placeholder-d1-id"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "STORAGE",
+      "bucket_name": "pvrge-storage"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "0 * * * *"
+    ]
+  }
+}
