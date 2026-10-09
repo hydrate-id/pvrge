@@ -4,12 +4,12 @@ import { useSession } from '../composables/useSession';
 import EnvelopeIllustration from '../components/EnvelopeIllustration.vue';
 import Envelope from '@primeicons/vue/envelope';
 import ChevronRight from '@primeicons/vue/chevron-right';
-import ChevronLeft from '@primeicons/vue/chevron-left';
 import Spinner from '@primeicons/vue/spinner';
 import Paperclip from '@primeicons/vue/paperclip';
 import Trash from '@primeicons/vue/trash';
 
 const session = useSession();
+const { activeAccount } = session;
 
 const messages = ref([]);
 const selectedMessageId = ref(null);
@@ -132,7 +132,10 @@ async function fetchMessageDetail(id) {
     });
     if (!res.ok) throw new Error('Failed to fetch message detail');
     const data = await res.json();
-    selectedMessageDetail.value = data.message;
+    selectedMessageDetail.value = {
+      ...data.message,
+      created_at: data.message.created_at || data.message.received_at,
+    };
     markAsRead(id);
     viewMode.value = data.message.body_html ? 'html' : 'text';
   } catch (err) {
@@ -363,14 +366,6 @@ onUnmounted(() => {
 
     <!-- ================= 2. TAMPILAN DETAIL (Saat email diklik) ================= -->
     <div v-else>
-      <!-- Tombol kembali -->
-      <button
-        @click="deselectMessage"
-        class="flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500 mb-2"
-      >
-        <ChevronLeft class="mr-1 -ml-1 size-4 shrink-0" /> Back
-      </button>
-
       <!-- Loading Detail State -->
       <div
         v-if="isLoadingDetail"
@@ -381,81 +376,79 @@ onUnmounted(() => {
       </div>
 
       <div v-else-if="selectedMessageDetail">
-        <!-- Baris Judul & Aksi -->
-        <div class="flex items-center justify-between gap-4">
-          <h2 class="text-2xl/7 font-bold text-gray-900 dark:text-gray-300 truncate">
-            {{ selectedMessageDetail.subject || '(No Subject)' }}
-          </h2>
+        <a href="#" @click.prevent="deselectMessage" class="flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500">
+          <svg class="mr-1 -ml-1 size-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+          </svg>
+          Back
+        </a>
 
-          <div class="flex items-center gap-2 shrink-0">
-            <!-- Download attachment jika ada -->
-            <template v-if="selectedMessageDetail.attachments && selectedMessageDetail.attachments.length > 0">
-              <button
-                v-for="att in selectedMessageDetail.attachments"
-                :key="att.id"
-                @click="downloadAttachment(att)"
-                :disabled="isDownloadingAttachment[att.id]"
-                class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 transition disabled:opacity-50"
-                :title="`Download ${att.filename}`"
-              >
-                <Paperclip class="size-3 text-amber-500" />
-                <span class="max-w-[120px] truncate">{{ att.filename }}</span>
-              </button>
-            </template>
-
-            <!-- Delete message button dengan trash icon warna rose/merah -->
+        <div class="mt-2 md:flex md:items-center md:justify-between">
+          <div class="min-w-0 flex-1">
+            <h2 class="text-2xl/7 font-bold text-gray-900 sm:truncate dark:text-gray-300">
+              {{ selectedMessageDetail.subject || '(No Subject)' }}
+            </h2>
+          </div>
+          <div class="mt-4 flex shrink-0 overflow-y-auto md:mt-0 md:ml-4">
+            <!-- Tombol aksi hapus dengan icon trash PrimeIcons -->
             <button
+              type="button"
               @click="deleteSelectedMessage"
               :disabled="isDeleting"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 transition disabled:opacity-50"
               title="Delete message"
+              class="rounded-md font-medium inline-flex items-center text-sm ring-1 ring-inset ring-gray-200 dark:ring-gray-700 text-rose-600 dark:text-rose-400 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 p-2 transition"
             >
-              <Trash class="size-4 text-rose-600 dark:text-rose-400" />
-              <span>{{ isDeleting ? 'Deleting...' : 'Delete' }}</span>
+              <Trash class="size-4 shrink-0" />
             </button>
           </div>
         </div>
 
-        <!-- Card Detail Email -->
         <div class="mt-4 overflow-hidden border-b border-gray-200 bg-white px-4 py-5 shadow sm:rounded-md sm:px-6 dark:border-gray-900 dark:bg-gray-800/75">
-          <!-- Header Pengirim & Tanggal -->
-          <div class="flex items-center justify-between border-b border-gray-200 pb-4 dark:border-gray-700">
-            <div class="flex items-center gap-3">
-              <div class="size-10 rounded-full bg-lime-200 dark:bg-lime-700 flex items-center justify-center font-bold text-gray-700 dark:text-gray-200 shrink-0">
-                {{ getInitial(selectedMessageDetail.sender_name || selectedMessageDetail.sender_email) }}
-              </div>
-              <div>
-                <div class="flex flex-wrap items-baseline gap-2">
-                  <span class="text-lg/6 font-medium text-indigo-600 dark:text-indigo-400">
-                    {{ selectedMessageDetail.sender_name || selectedMessageDetail.sender_email }}
-                  </span>
-                  <span v-if="selectedMessageDetail.sender_name && selectedMessageDetail.sender_email" class="text-sm/5 text-gray-500 dark:text-gray-400 font-mono">
-                    &lt;{{ selectedMessageDetail.sender_email }}&gt;
+          <div class="-mt-4 -ml-4 flex flex-wrap items-center justify-between sm:flex-nowrap">
+            <div class="mt-4 ml-4">
+              <div class="flex items-center">
+                <div class="shrink-0">
+                  <span class="inline-flex items-center justify-center shrink-0 select-none rounded-full align-middle size-10 text-xl bg-lime-200 dark:bg-lime-700 transition">
+                    <span class="truncate leading-none font-medium text-gray-600 group-hover:text-gray-700 dark:text-gray-300 dark:group-hover:text-gray-200">
+                      {{ getInitial(selectedMessageDetail.sender_name || selectedMessageDetail.sender_email) }}
+                    </span>
                   </span>
                 </div>
-                <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  To: {{ session.activeAccount.value?.email }}
+                <div class="ml-4">
+                  <div class="text-lg/6 font-medium text-indigo-600 dark:text-indigo-400">
+                    {{ selectedMessageDetail.sender_name || selectedMessageDetail.sender_email }}
+                    <span class="text-sm/5 font-normal text-gray-700 dark:text-gray-400 ml-1">
+                      {{ selectedMessageDetail.sender_email }}
+                    </span>
+                  </div>
+                  <div class="flex items-center text-sm/5 text-gray-500 dark:text-gray-400">
+                    <svg class="mr-1.5 size-5 shrink-0 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884zM18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span class="truncate">
+                      <a :href="'mailto:' + activeAccount?.email" class="ml-1">{{ activeAccount?.email }};</a>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-
-            <div class="text-right text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-4">
-              <div class="font-medium text-gray-700 dark:text-gray-300">
-                {{ formatRelativeTime(selectedMessageDetail.received_at) }}
-              </div>
-              <div class="text-[11px] mt-0.5">
-                {{ formatFullDate(selectedMessageDetail.received_at) }}
-              </div>
+            <div class="mt-4 ml-4 flex shrink-0 hover:cursor-context-menu">
+              <time class="truncate text-gray-500 dark:text-gray-400 text-sm">
+                {{ formatRelativeTime(selectedMessageDetail.created_at) }}
+              </time>
             </div>
           </div>
 
-          <!-- Body email -->
-          <div class="px-2 py-4 sm:px-4">
-            <iframe
-              class="w-full min-h-[500px] border-0"
-              :srcdoc="selectedMessageDetail.body_html || selectedMessageDetail.body_text"
-              style="overflow: auto;"
-            ></iframe>
+          <div class="px-4 py-5 sm:px-6">
+            <div class="aspect-h-8 aspect-w-16 h-full">
+              <iframe
+                class="w-full min-h-[500px] border-0"
+                :srcdoc="selectedMessageDetail.body_html || selectedMessageDetail.body_text"
+                id="iFrameResizer1"
+                scrolling="yes"
+                style="overflow: auto;"
+              ></iframe>
+            </div>
           </div>
         </div>
       </div>
