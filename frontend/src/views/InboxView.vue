@@ -218,9 +218,7 @@ function printEmail() {
   showActionsMenu.value = false;
   if (!selectedMessageDetail.value) return;
 
-  const bodyContent = isShowingSource.value
-    ? `<pre style="white-space: pre-wrap; word-break: break-all; font-family: monospace; font-size: 13px; line-height: 1.5;">${(rawSourceText.value || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</pre>`
-    : (selectedMessageDetail.value.body_html || `<pre style="white-space: pre-wrap; font-family: sans-serif; font-size: 14px; line-height: 1.5;">${selectedMessageDetail.value.body_text || ''}</pre>`);
+  const bodyContent = selectedMessageDetail.value.body_html || `<pre style="white-space: pre-wrap; font-family: sans-serif; font-size: 14px; line-height: 1.5;">${selectedMessageDetail.value.body_text || ''}</pre>`;
 
   const printFrame = document.createElement('iframe');
   printFrame.style.position = 'fixed';
