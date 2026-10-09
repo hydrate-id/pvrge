@@ -2,7 +2,7 @@
 </script>
 
 <template>
-  <div class="max-w-4xl mx-auto space-y-4">
+  <div class="w-full space-y-4">
     <!-- Tombol < Back kembali ke / (Inbox) -->
     <div>
       <router-link
