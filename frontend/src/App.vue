@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useSession } from './composables/useSession';
 import { useTheme } from './composables/useTheme';
 import AccountModal from './components/AccountModal.vue';
@@ -11,6 +11,7 @@ import Trash from '@primeicons/vue/trash';
 import Times from '@primeicons/vue/times';
 
 const route = useRoute();
+const router = useRouter();
 const session = useSession();
 const { isDark, toggleTheme } = useTheme();
 
@@ -98,9 +99,19 @@ async function copyPassword() {
 function switchAccount(id) {
   session.switchAccount(id);
   isDropdownOpen.value = false;
+  if (route.path !== '/') {
+    router.push('/');
+  }
   handleRefresh();
 }
 const handleSwitch = switchAccount;
+
+function handleAccountReady() {
+  if (route.path !== '/') {
+    router.push('/');
+  }
+  handleRefresh();
+}
 
 function handleCreateAccount() {
   isDropdownOpen.value = false;
@@ -524,7 +535,7 @@ onUnmounted(() => {
       :isOpen="showAccountModal"
       :initialMode="accountModalMode"
       @close="showAccountModal = false"
-      @account-ready="handleRefresh"
+      @account-ready="handleAccountReady"
     />
   </div>
 </template>
