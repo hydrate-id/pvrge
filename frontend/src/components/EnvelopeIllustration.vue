@@ -3,7 +3,7 @@
     <img
       src="../assets/mailbox.svg"
       alt="Empty mailbox illustration"
-      class="w-full max-w-xs sm:max-w-sm h-auto mx-auto select-none"
+      class="w-44 sm:w-52 max-w-[200px] h-auto mx-auto select-none"
     />
   </div>
 </template>
