@@ -36,29 +36,23 @@
         </ul>
       </div>
 
-      <div class="mt-9 space-y-4">
-        <div class="flex items-center gap-3">
-          <svg class="size-6 text-emerald-600 dark:text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
-          </svg>
+      <div class="mt-9 space-y-3">
+        <div>
           <a
             href="mailto:support@pvrge.com"
-            class="text-emerald-600 dark:text-emerald-400 hover:underline font-medium"
+            class="text-lg/6 text-emerald-600 dark:text-emerald-400 font-medium"
           >
             support@pvrge.com
           </a>
         </div>
-        <div class="flex items-center gap-3">
-          <svg class="size-6 text-emerald-600 dark:text-emerald-400 shrink-0" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
-          </svg>
+        <div>
           <a
             href="https://t.me/pvrgebot"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-emerald-600 dark:text-emerald-400 hover:underline font-medium"
+            class="text-lg/6 text-emerald-600 dark:text-emerald-400 font-medium"
           >
-            https://t.me/pvrgebot
+            Telegram
           </a>
         </div>
       </div>
