@@ -168,7 +168,7 @@ onUnmounted(() => {
         <div class="flex shrink-0 items-center px-4">
           <router-link to="/" @click="mobileMenuOpen = false" class="flex items-center gap-2">
             <span class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">
-              <span class="text-indigo-600 dark:text-indigo-400">pv</span>rge
+              <span class="text-emerald-600 dark:text-emerald-400">pv</span>rge
             </span>
           </router-link>
         </div>
@@ -254,7 +254,7 @@ onUnmounted(() => {
         <div class="flex shrink-0 items-center px-4">
           <router-link to="/" class="flex items-center gap-2">
             <span class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">
-              <span class="text-indigo-600 dark:text-indigo-400">pv</span>rge
+              <span class="text-emerald-600 dark:text-emerald-400">pv</span>rge
             </span>
           </router-link>
         </div>
@@ -335,7 +335,7 @@ onUnmounted(() => {
         <!-- Mobile sidebar hamburger button -->
         <button
           type="button"
-          class="border-r border-gray-200 px-4 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 md:hidden dark:border-gray-700 dark:text-gray-400"
+          class="border-r border-gray-200 px-4 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 md:hidden dark:border-gray-700 dark:text-gray-400"
           @click="mobileMenuOpen = true"
         >
           <span class="sr-only">Open sidebar</span>
@@ -468,7 +468,7 @@ onUnmounted(() => {
                     <button
                       type="button"
                       @click="handleCreateAccount"
-                      class="w-full flex items-center select-none outline-none rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/30 p-1.5 text-sm gap-2 text-indigo-600 dark:text-indigo-400 transition-colors text-left"
+                      class="w-full flex items-center select-none outline-none rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-950/30 p-1.5 text-sm gap-2 text-emerald-600 dark:text-emerald-400 transition-colors text-left"
                     >
                       <User class="text-sm shrink-0" />
                       <span class="truncate font-medium">Create an account</span>
@@ -506,7 +506,7 @@ onUnmounted(() => {
               class="ml-3 rounded-full p-1 text-gray-400 hover:text-gray-500 outline-none focus:outline-none focus:ring-0 active:outline-none dark:hover:text-gray-300"
             >
               <span class="sr-only">Sign out</span>
-              <SignOut class="size-6 text-gray-500 hover:text-purple-600 dark:hover:text-purple-500 cursor-pointer" />
+              <SignOut class="size-6 text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-500 cursor-pointer" />
             </button>
           </div>
         </div>

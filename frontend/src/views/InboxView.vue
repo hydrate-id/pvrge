@@ -443,7 +443,7 @@ onUnmounted(() => {
                   <!-- Grid 2 kolom di md -->
                   <div class="min-w-0 flex-1 px-4 md:grid md:grid-cols-2 md:gap-4">
                     <div class="min-w-0 flex-auto">
-                      <div class="truncate text-sm/5 font-medium text-indigo-600 dark:text-indigo-400">
+                      <div class="truncate text-sm/5 font-medium text-emerald-600 dark:text-emerald-400">
                         {{ msg.from_name || msg.from_address }}
                       </div>
                       <div class="mt-1 flex items-center text-sm/5 text-gray-500 dark:text-gray-400">
@@ -672,7 +672,7 @@ onUnmounted(() => {
                   </span>
                 </div>
                 <div class="ml-4">
-                  <div class="text-lg/6 font-medium text-indigo-600 dark:text-indigo-400">
+                  <div class="text-lg/6 font-medium text-emerald-600 dark:text-emerald-400">
                     {{ selectedMessageDetail.sender_name || selectedMessageDetail.sender_email }}
                     <span class="text-sm/5 font-normal text-gray-700 dark:text-gray-400 ml-1">
                       {{ selectedMessageDetail.sender_email }}

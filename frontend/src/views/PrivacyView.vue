@@ -78,7 +78,7 @@
         </h2>
         <p>
           If you have questions or inquiries regarding our privacy policy or practices, you can contact us at
-          <a href="mailto:support@pvrge.com" class="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">support@pvrge.com</a>.
+          <a href="mailto:support@pvrge.com" class="text-emerald-600 dark:text-emerald-400 font-medium hover:underline">support@pvrge.com</a>.
         </p>
       </section>
     </div>
