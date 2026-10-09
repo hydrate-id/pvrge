@@ -27,59 +27,58 @@
     <div class="mt-4 overflow-hidden border-b border-gray-200 bg-white px-4 py-5 shadow sm:rounded-md sm:px-6 dark:border-gray-900 dark:bg-gray-800/75 text-sm text-gray-600 dark:text-gray-300 leading-relaxed space-y-6">
       <section class="space-y-2">
         <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-          1. General Information & Identity Defense
+          1. Introduction
         </h2>
         <p>
-          pvrge provides disposable, temporary email addresses to help individuals protect their personal email addresses from spam, marketing lists, and unwanted exposure. We prioritize privacy by design. We do not require you to provide your real name, physical address, phone number, or payment details.
+          This Privacy Policy describes how pvrge.com ("we", "us", or "our") handles and protects information when you use our temporary disposable email service. By accessing or using pvrge.com, you agree to the terms outlined in this policy.
         </p>
       </section>
 
       <section class="space-y-2">
         <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-          2. Information We Process
+          2. Collection of Data & Use of Data
         </h2>
         <p>
-          To operate the temporary email service, we process:
+          pvrge.com is built with a strict privacy-first architecture. Unlike conventional email services, we do not require any registration, personal details, identity verification, or phone numbers to use our service. We do not collect or store your real name, physical address, or IP address.
+        </p>
+        <p>
+          To deliver incoming emails to your disposable inbox, our servers process and temporarily store incoming messages, including email headers, sender addresses, subject lines, bodies, and attachments. We only use this data to display messages to you during your active session.
+        </p>
+      </section>
+
+      <section class="space-y-2">
+        <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+          3. Cookies & Local Storage
+        </h2>
+        <p>
+          We do not use tracking or third-party advertising cookies. We only use browser local storage (<code>localStorage</code>) and session storage on your device to persist your temporary account credentials, encryption keys, and interface preferences (such as dark mode theme). This data remains strictly in your browser and is never tracked across external sites.
+        </p>
+      </section>
+
+      <section class="space-y-2">
+        <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+          4. Privacy Protection & Security
+        </h2>
+        <p>
+          Conventional mailbox providers maintain long-term archives of your personal emails, associate your identity with account activities, and routinely log connecting IP addresses. In contrast, temporary disposable mail through pvrge.com eliminates these risks by providing full anonymity:
         </p>
         <ul class="list-disc list-inside space-y-1 pl-2">
-          <li>Randomly generated or user-specified email addresses and their cryptographic password hashes.</li>
-          <li>Incoming emails sent to your active disposable mailbox, including email bodies, headers, sender addresses, timestamps, and attachments.</li>
+          <li><strong>No IP Logging:</strong> We do not log or store user IP addresses.</li>
+          <li><strong>24-Hour Message Purge:</strong> All received messages and attachments are automatically and permanently deleted after 24 hours. No backups or archives are retained.</li>
+          <li><strong>Instant Account Deletion:</strong> You have full control to permanently delete your mailbox and all associated messages at any moment with a single click.</li>
         </ul>
-      </section>
-
-      <section class="space-y-2">
-        <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-          3. 24-Hour Message Retention & Automatic Purge
-        </h2>
-        <p>
-          All received messages, attachments, headers, and metadata are strictly stored for a maximum period of <strong>24 hours</strong>. Upon reaching the 24-hour retention window, emails are automatically, permanently, and irrevocably purged from all databases and cloud storage buckets. We do not retain backups or archives of deleted mail.
+        <p class="font-medium text-gray-900 dark:text-gray-100">
+          Your privacy is our highest priority, so you need not worry about your data: we give it full protection. Access to it is granted to you alone, and only for the lifetime of the temporary mailbox.
         </p>
       </section>
 
       <section class="space-y-2">
         <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-          4. Browser Local Storage
+          5. Contact Us
         </h2>
         <p>
-          We do not use tracking or advertising cookies. We only use browser local storage (<code>localStorage</code>) on your device to keep your active authentication token and color theme preference across page reloads. You can clear or delete your session at any time directly through the account menu.
-        </p>
-      </section>
-
-      <section class="space-y-2">
-        <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-          5. Third-Party Sharing
-        </h2>
-        <p>
-          We do not sell, rent, trade, or share your data with any third-party marketing or advertising networks. We will only disclose information if strictly required by applicable law or a valid court order.
-        </p>
-      </section>
-
-      <section class="space-y-2">
-        <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-          6. Contact Us
-        </h2>
-        <p>
-          If you have questions or concerns regarding our privacy practices, please contact us at <a href="mailto:support@pvrge.com" class="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">support@pvrge.com</a>.
+          If you have questions or inquiries regarding our privacy policy or practices, you can contact us at
+          <a href="mailto:support@pvrge.com" class="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">support@pvrge.com</a>.
         </p>
       </section>
     </div>

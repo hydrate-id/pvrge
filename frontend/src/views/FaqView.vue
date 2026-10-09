@@ -28,55 +28,86 @@
       <div class="divide-y divide-gray-200 dark:divide-gray-700/60 space-y-5">
         <div class="pt-2 first:pt-0 space-y-1.5">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            What is pvrge?
+            What is temporary / disposable / anonymous mail?
           </h2>
           <p>
-            pvrge is a fast, disposable temporary email service that gives you throwaway email addresses to receive verification emails, activation links, or one-time codes without exposing your private inbox to spam and trackers.
+            A disposable mailbox is a temporary, completely anonymous email address that requires no registration.
           </p>
         </div>
 
         <div class="pt-5 space-y-1.5">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            How long are received emails kept?
+            Why would I need a temporary email address?
           </h2>
           <p>
-            Messages and their attachments are kept for exactly <strong>24 hours</strong>. After 24 hours, our automated system permanently purges them from our storage and databases.
+            For signing up on sites you don't fully trust, for anonymous conversations, forums and giveaways: any situation where you want messages delivered instantly without exposing your identity.
           </p>
         </div>
 
         <div class="pt-5 space-y-1.5">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            Can I reuse my mailbox again later?
+            How is it different from regular mail?
+          </h2>
+          <ul class="list-disc list-inside space-y-1 pl-2">
+            <li>It requires no registration;</li>
+            <li>It is completely anonymous: your personal data, the address itself and all emails are erased once you delete the mailbox;</li>
+            <li>Messages are delivered instantly;</li>
+            <li>The address is generated automatically, so there is no hunting for a free username;</li>
+            <li>The mailbox is protected from spam, hacking and exploits.</li>
+          </ul>
+        </div>
+
+        <div class="pt-5 space-y-1.5">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+            How do I send an email?
           </h2>
           <p>
-            Yes. Every disposable mailbox has a unique password. You can hover or click the password in the account menu in the top bar to view and copy it. With your email and password, you can log back into this mailbox at any time using the "Log in" option.
+            Unfortunately, we do not provide this feature.
           </p>
         </div>
 
         <div class="pt-5 space-y-1.5">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            Can I have multiple mailboxes?
+            How do I extend the lifetime of my temporary mailbox?
           </h2>
           <p>
-            Yes. You can create multiple temporary accounts and switch between them seamlessly using the account dropdown in the top bar.
+            There is nothing to extend: your mailbox stays valid until you delete it yourself.
           </p>
         </div>
 
         <div class="pt-5 space-y-1.5">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            Can I send emails from pvrge?
+            How long do you store incoming messages?
           </h2>
           <p>
-            No. pvrge is strictly designed for receiving emails. Outgoing mail is disabled to protect reputation and prevent abuse or unauthorized spam.
+            We store messages for 24 hours only. Sorry, we can't keep them indefinitely.
           </p>
         </div>
 
         <div class="pt-5 space-y-1.5">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            How do I delete my account immediately?
+            Can I read the emails I receive?
           </h2>
           <p>
-            Click the trash icon in the top right or select "Delete account" in the account dropdown menu. Your mailbox and all associated messages will be deleted immediately.
+            Yes, they appear right under your mailbox address, showing the sender, the subject and the text of each message. If the email you're waiting for isn't there yet, click "Refresh".
+          </p>
+        </div>
+
+        <div class="pt-5 space-y-1.5">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+            Do you keep renewing the domains used by this service?
+          </h2>
+          <p>
+            Yes, we always renew our domains, so they won't disappear.
+          </p>
+        </div>
+
+        <div class="pt-5 space-y-1.5">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+            I forgot my password. Can you reset it?
+          </h2>
+          <p>
+            No. Your password is generated in your browser and stored encrypted, so there is no way for us to reset it.
           </p>
         </div>
       </div>
