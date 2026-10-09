@@ -9,10 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@primeicons/vue": "^8.0.2",
     "@vueuse/core": "^15.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "primeicons": "^8.0.2",
     "reka-ui": "^2.11.0",
     "shadcn-vue": "^2.8.2",
     "tailwind-merge": "^3.7.0",

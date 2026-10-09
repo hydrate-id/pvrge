@@ -4,6 +4,10 @@ import { useRoute } from 'vue-router';
 import { useSession } from './composables/useSession';
 import { useTheme } from './composables/useTheme';
 import AccountModal from './components/AccountModal.vue';
+import SignOut from '@primeicons/vue/sign-out';
+import User from '@primeicons/vue/user';
+import SignIn from '@primeicons/vue/sign-in';
+import Trash from '@primeicons/vue/trash';
 
 const route = useRoute();
 const session = useSession();
@@ -462,7 +466,7 @@ onUnmounted(() => {
                       @click="handleCreateAccount"
                       class="w-full flex items-center select-none outline-none rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/30 p-1.5 text-sm gap-2 text-indigo-600 dark:text-indigo-400 transition-colors text-left"
                     >
-                      <i class="pi pi-user text-sm shrink-0" />
+                      <User class="text-sm shrink-0" />
                       <span class="truncate font-medium">Create an account</span>
                     </button>
 
@@ -472,7 +476,7 @@ onUnmounted(() => {
                       @click="openLoginModal"
                       class="w-full flex items-center select-none outline-none rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/30 p-1.5 text-sm gap-2 text-blue-600 dark:text-blue-400 transition-colors text-left"
                     >
-                      <i class="pi pi-sign-in text-sm shrink-0" />
+                      <SignIn class="text-sm shrink-0" />
                       <span class="truncate font-medium">Log in</span>
                     </button>
 
@@ -482,7 +486,7 @@ onUnmounted(() => {
                       @click="handleDeleteCurrentAccount"
                       class="w-full flex items-center select-none outline-none rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 p-1.5 text-sm gap-2 text-rose-600 dark:text-rose-400 transition-colors text-left"
                     >
-                      <i class="pi pi-trash text-sm shrink-0" />
+                      <Trash class="text-sm shrink-0" />
                       <span class="truncate font-medium">Delete account</span>
                     </button>
                   </div>
@@ -498,9 +502,7 @@ onUnmounted(() => {
               class="ml-3 rounded-full p-1 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:hover:text-gray-300"
             >
               <span class="sr-only">Sign out</span>
-              <svg class="size-6 text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H15" />
-              </svg>
+              <SignOut class="size-6 text-gray-500 hover:text-purple-600 dark:hover:text-purple-500 cursor-pointer" />
             </button>
           </div>
         </div>

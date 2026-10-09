@@ -23,10 +23,10 @@
       "name": "pvrge-frontend",
       "version": "1.0.0",
       "dependencies": {
+        "@primeicons/vue": "^8.0.2",
         "@vueuse/core": "^15.0.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
-        "primeicons": "^8.0.2",
         "reka-ui": "^2.11.0",
         "shadcn-vue": "^2.8.2",
         "tailwind-merge": "^3.7.0",
@@ -289,6 +289,12 @@
     "@nodelib/fs.walk": ["@nodelib/fs.walk@1.2.8", "", { "dependencies": { "@nodelib/fs.scandir": "2.1.5", "fastq": "^1.6.0" } }, "sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.153.0", "", {}, "sha512-jSNrRIyvPVLL5E1z/tS5zLAprosGz/FuI1PWwEOz59j3E4TTTzSpqKb/RDGqJhhW0QHYISGXxq582wGx6T11Tw=="],
+
+    "@primeicons/core": ["@primeicons/core@8.0.2", "", { "dependencies": { "@primeuix/utils": "^0.8.0" } }, "sha512-VySryvfIQH2xzNVXISIQg357gAt4oFYX2vKy27tWMB7UvEHu/gjRpeilBty3LBln7oVuAdFLPYOWr/FtTH8eJw=="],
+
+    "@primeicons/vue": ["@primeicons/vue@8.0.2", "", { "dependencies": { "@primeicons/core": "8.0.2", "@primeuix/utils": "^0.8.0" }, "peerDependencies": { "vue": "^3" } }, "sha512-HRb3kgnj0XbqZvYCkgnF5LSAKNoRAgU8hwXcVqeCSKQKO3uJoI4oYDtEwULM8Rxy2avhiJuozlVHugskDF4HdQ=="],
+
+    "@primeuix/utils": ["@primeuix/utils@0.8.2", "", {}, "sha512-4Cz5HY1XHqJwhq1ieml6l5IDkWt41Amdw/t2rAQxNXv7WwAhgb8QrnjJM6scW9h1D0PjQgm9Z3RgNlWCU+WZng=="],
 
     "@rolldown/binding-android-arm-eabi": ["@rolldown/binding-android-arm-eabi@1.2.13", "", { "os": "android", "cpu": "arm" }, "sha512-Vu/NICrgdRvUOeaJZIyB2FP63s6fO/4ud5l8dXmxDx9yDyn+mN0y+gsvsVviSli+T361Aqo0h46EuMoobrwawA=="],
 
@@ -999,8 +1005,6 @@
     "prelude-ls": ["prelude-ls@1.2.1", "", {}, "sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g=="],
 
     "prettier": ["prettier@3.9.9", "", { "bin": { "prettier": "bin/prettier.cjs" } }, "sha512-Z/CJHIkdujO/OtN7nXUii0Rf3VT5SRuhjBA82Xvu2XhBUgX3nhP67T0LHceBdQLex7OOFGTox+Q5Yg8Jk2Qivg=="],
-
-    "primeicons": ["primeicons@8.0.2", "", {}, "sha512-o3UQey3nXMEQRAudVYZZWswz6mmnWpPnksYb7wIu4rEEVfdS3pLnxnmSJx5gKBRMer1MxnhJZG5QRDxVVJFNkA=="],
 
     "printable-characters": ["printable-characters@1.0.42", "", {}, "sha512-dKp+C4iXWK4vVYZmYSd0KBH5F/h1HoZRsbJ82AVKRO3PEo8L4lBS/vLwhVtpwwuYcoIsVY+1JYKR268yn480uQ=="],
 
