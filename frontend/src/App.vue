@@ -411,8 +411,8 @@ onUnmounted(() => {
                   id="user-menu-button"
                   title="Manage Accounts"
                 >
-                  <span class="inline-flex size-6 items-center justify-center select-none rounded-full text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
-                    {{ accounts.length || 1 }}
+                  <span class="inline-flex size-6 items-center justify-center select-none rounded-full text-xs font-bold uppercase bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                    {{ activeAccount?.email ? activeAccount.email.charAt(0).toUpperCase() : 'P' }}
                   </span>
                 </button>
               </div>
