@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import {
   Inbox, RefreshCw, Sun, Moon, Copy, Check, Menu, X,
-  User, Trash2, Plus, LogIn
+  User, Trash2, Plus, LogIn, Mail
 } from 'lucide-vue-next';
 import { useSession } from './composables/useSession';
 import { useTheme } from './composables/useTheme';
@@ -18,7 +18,7 @@ const mobileMenuOpen = ref(false);
 const isDropdownOpen = ref(false);
 const dropdownRef = ref(null);
 
-const copiedEmail = ref(false);
+const copied = ref(false);
 const copiedPassword = ref(false);
 
 const showAccountModal = ref(false);
@@ -50,17 +50,26 @@ async function handleRefresh() {
   }, 600);
 }
 
-async function copyEmail() {
-  const email = session.activeAccount.value?.email;
-  if (!email) return;
+async function copyEmail(email) {
+  const targetEmail = email || session.activeAccount.value?.email;
+  if (!targetEmail) return;
   try {
-    await navigator.clipboard.writeText(email);
-    copiedEmail.value = true;
-    setTimeout(() => {
-      copiedEmail.value = false;
-    }, 2000);
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(targetEmail);
+    } else {
+      const textArea = document.createElement("textarea");
+      textArea.value = targetEmail;
+      textArea.style.position = "fixed";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+    }
+    copied.value = true;
+    setTimeout(() => { copied.value = false; }, 2000);
   } catch (e) {
-    console.error('Failed to copy email:', e);
+    console.error(e);
   }
 }
 
@@ -379,25 +388,21 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <!-- Input Email Bar (w-full, readonly, cursor-pointer, select-all, 1-click copy dengan tooltip Copied!) -->
+        <!-- Top Navbar: Text Clickable Email & Envelope Icon -->
         <div class="flex-1 max-w-xl pr-2 sm:pr-4">
-          <div class="relative rounded-md shadow-sm">
-            <input
-              type="text"
-              readonly
-              :value="session.activeAccount.value?.email || 'Generating address...'"
-              @click="copyEmail"
-              title="Click to copy address"
-              class="block w-full cursor-pointer rounded-md border-0 py-2 pl-3 pr-10 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-lime-500 dark:bg-gray-800 dark:text-white dark:ring-gray-700 text-xs sm:text-sm font-mono select-all transition"
-            />
+          <div class="relative inline-flex items-center">
             <button
               type="button"
-              @click="copyEmail"
-              class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              @click="copyEmail(session.activeAccount.value?.email)"
+              class="group flex items-center gap-2 rounded-md px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition cursor-pointer text-left select-none max-w-full"
               title="Click to copy email address"
             >
-              <Check v-if="copiedEmail" class="h-4 w-4 text-lime-500" />
-              <Copy v-else class="h-4 w-4" />
+              <Mail class="h-4 w-4 shrink-0 text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-200 transition" />
+              <span class="truncate font-mono font-medium text-xs sm:text-sm text-gray-900 dark:text-gray-200">
+                {{ session.activeAccount.value?.email || 'Generating address...' }}
+              </span>
+              <Check v-if="copied" class="h-4 w-4 shrink-0 text-lime-500 ml-0.5" />
+              <Copy v-else class="h-3.5 w-3.5 shrink-0 text-gray-400 opacity-60 group-hover:opacity-100 ml-0.5 transition" />
             </button>
 
             <!-- Copied Tooltip Badge -->
@@ -410,8 +415,8 @@ onUnmounted(() => {
               leave-to-class="opacity-0 translate-y-1"
             >
               <div
-                v-if="copiedEmail"
-                class="absolute -bottom-8 left-1/2 -translate-x-1/2 rounded bg-gray-900 px-2.5 py-0.5 text-[11px] font-semibold text-white shadow dark:bg-white dark:text-gray-900 z-50 pointer-events-none"
+                v-if="copied"
+                class="absolute -bottom-7 left-1/2 -translate-x-1/2 rounded bg-gray-900 px-2 py-0.5 text-[11px] font-semibold text-white shadow dark:bg-white dark:text-gray-900 z-50 pointer-events-none whitespace-nowrap"
               >
                 Copied!
               </div>
