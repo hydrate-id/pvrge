@@ -7,6 +7,10 @@ import ChevronRight from '@primeicons/vue/chevron-right';
 import Spinner from '@primeicons/vue/spinner';
 import Paperclip from '@primeicons/vue/paperclip';
 import Trash from '@primeicons/vue/trash';
+import EllipsisV from '@primeicons/vue/ellipsis-v';
+import Download from '@primeicons/vue/download';
+import Code from '@primeicons/vue/code';
+import Print from '@primeicons/vue/print';
 
 const session = useSession();
 const { activeAccount } = session;
@@ -18,6 +22,8 @@ const isLoadingList = ref(false);
 const isLoadingDetail = ref(false);
 const isDeleting = ref(false);
 const isDownloadingAttachment = ref({});
+const showActionsMenu = ref(false);
+const isShowingSource = ref(false);
 const viewMode = ref('html'); // 'html' or 'text'
 const readMessageIds = ref(new Set());
 
@@ -149,12 +155,50 @@ async function fetchMessageDetail(id) {
 function selectMessage(msgOrId) {
   const id = typeof msgOrId === 'object' && msgOrId !== null ? msgOrId.id : msgOrId;
   selectedMessageId.value = id;
+  isShowingSource.value = false;
+  showActionsMenu.value = false;
   fetchMessageDetail(id);
 }
 
 function deselectMessage() {
   selectedMessageId.value = null;
   selectedMessageDetail.value = null;
+  isShowingSource.value = false;
+  showActionsMenu.value = false;
+}
+
+function downloadEmail() {
+  if (!selectedMessageDetail.value) return;
+  const raw = selectedMessageDetail.value.raw_source;
+  const content = raw || selectedMessageDetail.value.body_html || selectedMessageDetail.value.body_text || '';
+  const filename = `${selectedMessageDetail.value.subject || 'message'}.${raw ? 'eml' : 'html'}`;
+  const mimeType = raw ? 'message/rfc822' : 'text/html;charset=utf-8';
+  const blob = new Blob([content], { type: mimeType });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+  showActionsMenu.value = false;
+}
+
+function toggleSource() {
+  isShowingSource.value = !isShowingSource.value;
+  showActionsMenu.value = false;
+}
+
+function printEmail() {
+  showActionsMenu.value = false;
+  const iframe = document.getElementById('iFrameResizer1');
+  if (iframe && iframe.contentWindow) {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  } else {
+    window.print();
+  }
 }
 
 async function deleteSelectedMessage() {
@@ -389,17 +433,73 @@ onUnmounted(() => {
               {{ selectedMessageDetail.subject || '(No Subject)' }}
             </h2>
           </div>
-          <div class="mt-4 flex shrink-0 overflow-y-auto md:mt-0 md:ml-4">
-            <!-- Tombol aksi hapus dengan icon trash PrimeIcons -->
+          <div class="relative mt-4 flex shrink-0 md:mt-0 md:ml-4">
+            <!-- Trigger Dropdown -->
             <button
               type="button"
-              @click="deleteSelectedMessage"
-              :disabled="isDeleting"
-              title="Delete message"
-              class="rounded-md font-medium inline-flex items-center text-sm ring-1 ring-inset ring-gray-200 dark:ring-gray-700 text-rose-600 dark:text-rose-400 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 p-2 transition"
+              @click="showActionsMenu = !showActionsMenu"
+              class="rounded-md font-medium inline-flex items-center text-sm ring-1 ring-inset ring-gray-200 dark:ring-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 p-1.5 transition"
+              title="More actions"
             >
-              <Trash class="size-4 shrink-0" />
+              <EllipsisV class="size-5 shrink-0" />
             </button>
+
+            <!-- Backdrop for click outside -->
+            <div
+              v-if="showActionsMenu"
+              class="fixed inset-0 z-20"
+              @click="showActionsMenu = false"
+            ></div>
+
+            <!-- Dropdown Menu -->
+            <div
+              v-if="showActionsMenu"
+              class="absolute right-0 top-full mt-1.5 w-44 rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black/5 dark:ring-gray-700 z-30 py-1 text-sm focus:outline-none"
+            >
+              <!-- Download -->
+              <button
+                type="button"
+                @click="downloadEmail"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+              >
+                <Download class="size-4 shrink-0" />
+                <span>Download</span>
+              </button>
+
+              <!-- Source -->
+              <button
+                type="button"
+                @click="toggleSource"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+              >
+                <Code class="size-4 shrink-0" />
+                <span>Source</span>
+              </button>
+
+              <!-- Print -->
+              <button
+                type="button"
+                @click="printEmail"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+              >
+                <Print class="size-4 shrink-0" />
+                <span>Print</span>
+              </button>
+
+              <!-- Divider -->
+              <div class="-mx-1 my-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+
+              <!-- Delete -->
+              <button
+                type="button"
+                @click="() => { showActionsMenu = false; deleteSelectedMessage(); }"
+                :disabled="isDeleting"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition disabled:opacity-50"
+              >
+                <Trash class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                <span>Delete</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -440,7 +540,10 @@ onUnmounted(() => {
           </div>
 
           <div class="px-4 py-5 sm:px-6">
-            <div class="aspect-h-8 aspect-w-16 h-full">
+            <div v-if="isShowingSource" class="h-full">
+              <pre class="p-4 bg-gray-950 text-gray-100 font-mono text-xs overflow-auto rounded max-h-[600px] whitespace-pre-wrap select-all"><code>{{ selectedMessageDetail.raw_source || selectedMessageDetail.body_html || selectedMessageDetail.body_text }}</code></pre>
+            </div>
+            <div v-else class="aspect-h-8 aspect-w-16 h-full">
               <iframe
                 class="w-full min-h-[500px] border-0"
                 :srcdoc="selectedMessageDetail.body_html || selectedMessageDetail.body_text"
