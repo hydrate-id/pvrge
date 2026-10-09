@@ -9,7 +9,7 @@
 }
 
 .account-blur {
-  filter: blur(0.25rem);
+  filter: blur(0.2rem);
   transition: filter 0.2s;
 }
 

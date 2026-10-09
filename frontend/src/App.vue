@@ -94,17 +94,19 @@ async function copyPassword() {
   }
 }
 
-function handleSwitch(id) {
+function switchAccount(id) {
   session.switchAccount(id);
   isDropdownOpen.value = false;
   handleRefresh();
 }
+const handleSwitch = switchAccount;
 
-function openCreateModal() {
+function handleCreateAccount() {
   isDropdownOpen.value = false;
   accountModalMode.value = 'create';
   showAccountModal.value = true;
 }
+const openCreateModal = handleCreateAccount;
 
 function openLoginModal() {
   isDropdownOpen.value = false;
@@ -112,13 +114,14 @@ function openLoginModal() {
   showAccountModal.value = true;
 }
 
-async function handleDeleteAccount() {
+async function handleDeleteCurrentAccount() {
   isDropdownOpen.value = false;
   if (confirm('Are you sure you want to delete this account and all its messages?')) {
     await session.deleteAccount();
     handleRefresh();
   }
 }
+const handleDeleteAccount = handleDeleteCurrentAccount;
 
 function handleClickOutside(e) {
   if (dropdownRef.value && !dropdownRef.value.contains(e.target)) {
@@ -421,81 +424,70 @@ onUnmounted(() => {
               >
                 <div
                   v-if="isDropdownOpen"
-                  class="absolute right-0 top-full mt-2 w-80 rounded-xl bg-white p-4 shadow-xl ring-1 ring-black/5 dark:bg-gray-800 dark:ring-white/10 z-50 text-xs"
+                  class="absolute right-0 top-full mt-2 z-50 min-w-32 bg-white dark:bg-gray-800 shadow-lg rounded-md ring-1 ring-gray-200 dark:ring-gray-700 overflow-hidden flex flex-col w-56 divide-y divide-gray-100 dark:divide-gray-700 text-left"
                 >
-                  <!-- Header: Signed in as & Password -->
-                  <div class="border-b border-gray-200 pb-3 dark:border-gray-700">
-                    <p class="text-[11px] text-gray-500 dark:text-gray-400">
-                      You are signed in as:
-                    </p>
-                    <p class="text-xs font-semibold text-gray-900 dark:text-white truncate font-mono mt-0.5">
-                      {{ activeAccount?.email || 'No account' }}
-                    </p>
-
-                    <div class="mt-2.5 flex items-center justify-between text-xs">
-                      <span class="text-gray-500 dark:text-gray-400">Password:</span>
-                      <div class="relative flex items-center gap-1.5">
-                        <span
-                          @click="copyPassword"
-                          title="Click to copy password"
-                          class="account-blur font-mono cursor-pointer select-all font-medium text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700/60 px-2 py-0.5 rounded transition"
-                        >
-                          {{ activeAccount?.password || '••••••••' }}
-                        </span>
-                        <span v-if="copiedPassword" class="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 animate-pulse">
-                          Copied!
-                        </span>
+                  <!-- Group 1: Info Akun Aktif -->
+                  <div class="p-1 isolate max-h-96 overflow-y-auto">
+                    <div class="p-1.5 text-sm">
+                      <div class="max-h-48 text-left break-all space-y-0.5">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">You are signed in as:</p>
+                        <p class="cursor-pointer text-sm font-medium text-gray-800 select-all dark:text-gray-200 truncate">{{ activeAccount?.email }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Password:
+                          <span class="cursor-pointer select-all account-blur hover:filter-none transition-all font-mono font-medium text-gray-800 dark:text-gray-200">
+                            {{ activeAccount?.password || '••••••••' }}
+                          </span>
+                        </p>
                       </div>
                     </div>
                   </div>
 
-                  <!-- Daftar akun tersimpan untuk switch akun (if multiple) -->
-                  <div v-if="accounts.length > 1" class="py-2.5 border-b border-gray-200 dark:border-gray-700">
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
-                      Switch Account
-                    </p>
-                    <div class="space-y-1 max-h-36 overflow-y-auto">
-                      <button
-                        v-for="acc in accounts"
-                        :key="acc.id"
-                        @click="handleSwitch(acc.id)"
-                        class="w-full text-left px-2 py-1.5 rounded-md flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                        :class="[
-                          acc.id === session.activeAccountId.value
-                            ? 'font-semibold text-indigo-600 dark:text-indigo-400 bg-gray-50 dark:bg-gray-700/50'
-                            : 'text-gray-700 dark:text-gray-300'
-                        ]"
-                      >
-                        <span class="truncate font-mono text-[11px]">{{ acc.email }}</span>
-                        <Check v-if="acc.id === session.activeAccountId.value" class="w-3.5 h-3.5 shrink-0 text-indigo-500" />
-                      </button>
-                    </div>
+                  <!-- Group 2: Daftar Akun Lain (Multi-Session Switcher) -->
+                  <div v-if="accounts.length > 1" class="p-1 isolate max-h-96 overflow-y-auto space-y-0.5">
+                    <button
+                      v-for="acc in accounts.filter(a => a.id !== activeAccount?.id)"
+                      :key="acc.id"
+                      type="button"
+                      @click="switchAccount(acc.id)"
+                      class="group relative w-full flex items-center select-none outline-none rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50 p-1.5 text-sm gap-2 transition-colors text-left"
+                    >
+                      <span class="inline-flex items-center justify-center shrink-0 select-none rounded-full align-middle size-6 text-xs bg-amber-200 dark:bg-amber-700 font-medium text-gray-700 dark:text-gray-200">
+                        {{ acc.email.charAt(0).toUpperCase() }}
+                      </span>
+                      <span class="truncate text-gray-700 dark:text-gray-300 text-sm">{{ acc.email }}</span>
+                    </button>
                   </div>
 
-                  <!-- Opsi: Create an account, Log in, Delete account -->
-                  <div class="pt-2 space-y-1">
+                  <!-- Group 3: Menu Aksi Akun -->
+                  <div class="p-1 isolate max-h-96 overflow-y-auto space-y-0.5">
+                    <!-- Create an account -->
                     <button
-                      @click="openCreateModal"
-                      class="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium transition"
+                      type="button"
+                      @click="handleCreateAccount"
+                      class="w-full flex items-center select-none outline-none rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/30 p-1.5 text-sm gap-2 text-indigo-600 dark:text-indigo-400 transition-colors text-left"
                     >
-                      <Plus class="w-4 h-4 text-indigo-500" />
-                      <span>Create an account</span>
+                      <User class="size-4 shrink-0" />
+                      <span class="truncate font-medium">Create an account</span>
                     </button>
 
+                    <!-- Log in -->
                     <button
+                      type="button"
                       @click="openLoginModal"
-                      class="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium transition"
+                      class="w-full flex items-center select-none outline-none rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/30 p-1.5 text-sm gap-2 text-blue-600 dark:text-blue-400 transition-colors text-left"
                     >
-                      <LogIn class="w-4 h-4 text-sky-500" />
-                      <span>Log in</span>
+                      <LogIn class="size-4 shrink-0" />
+                      <span class="truncate font-medium">Log in</span>
                     </button>
 
+                    <!-- Delete account -->
                     <button
-                      @click="handleDeleteAccount"
-                      class="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2 text-red-600 dark:text-red-400 font-medium transition"
+                      type="button"
+                      @click="handleDeleteCurrentAccount"
+                      class="w-full flex items-center select-none outline-none rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 p-1.5 text-sm gap-2 text-rose-600 dark:text-rose-400 transition-colors text-left"
                     >
-                      <Trash2 class="w-4 h-4" />
-                      <span>Delete account</span>
+                      <Trash2 class="size-4 shrink-0" />
+                      <span class="truncate font-medium">Delete account</span>
                     </button>
                   </div>
                 </div>
