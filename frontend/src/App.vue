@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSession } from './composables/useSession';
 import { useTheme } from './composables/useTheme';
+import { copyText } from './utils/clipboard';
 import AccountModal from './components/AccountModal.vue';
 import {
   AlertDialog,
@@ -74,37 +75,22 @@ async function handleRefresh() {
 async function copyEmail(email) {
   const targetEmail = email || session.activeAccount.value?.email;
   if (!targetEmail) return;
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(targetEmail);
-    } else {
-      const textArea = document.createElement("textarea");
-      textArea.value = targetEmail;
-      textArea.style.position = "fixed";
-      textArea.style.opacity = "0";
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
-    }
+  const ok = await copyText(targetEmail);
+  if (ok) {
     copied.value = true;
     setTimeout(() => { copied.value = false; }, 2000);
-  } catch (e) {
-    console.error(e);
   }
 }
 
 async function copyPassword() {
   const pwd = session.activeAccount.value?.password;
   if (!pwd) return;
-  try {
-    await navigator.clipboard.writeText(pwd);
+  const ok = await copyText(pwd);
+  if (ok) {
     copiedPassword.value = true;
     setTimeout(() => {
       copiedPassword.value = false;
     }, 2000);
-  } catch (e) {
-    console.error('Failed to copy password:', e);
   }
 }
 
@@ -448,12 +434,13 @@ onUnmounted(() => {
                     <div class="p-1.5 text-sm">
                       <div class="max-h-48 text-left break-all space-y-0.5">
                         <p class="text-xs text-gray-500 dark:text-gray-400">You are signed in as:</p>
-                        <p class="cursor-pointer text-sm font-medium text-gray-800 select-all dark:text-gray-200 truncate">{{ activeAccount?.email }}</p>
+                        <p class="cursor-pointer text-sm font-medium text-gray-800 select-all dark:text-gray-200 truncate" @click="handleCopyEmail">{{ activeAccount?.email }}</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           Password:
-                          <span class="cursor-pointer select-all account-blur hover:filter-none transition-all font-mono font-medium text-gray-800 dark:text-gray-200">
+                          <span @click="copyPassword" class="cursor-pointer select-all account-blur hover:filter-none transition-all font-mono font-medium text-gray-800 dark:text-gray-200" :title="copiedPassword ? 'Copied!' : 'Click to copy'">
                             {{ activeAccount?.password || '••••••••' }}
                           </span>
+                          <span v-if="copiedPassword" class="ml-1 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">Copied!</span>
                         </p>
                       </div>
                     </div>

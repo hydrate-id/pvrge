@@ -6,6 +6,7 @@ import Eye from '@primeicons/vue/eye';
 import EyeSlash from '@primeicons/vue/eye-slash';
 import Check from '@primeicons/vue/check';
 import Copy from '@primeicons/vue/copy';
+import { copyText } from '../utils/clipboard';
 
 const props = defineProps({
   isOpen: Boolean,
@@ -20,14 +21,12 @@ const copied = ref(false);
 
 async function copyPassword() {
   if (!props.password) return;
-  try {
-    await navigator.clipboard.writeText(props.password);
+  const ok = await copyText(props.password);
+  if (ok) {
     copied.value = true;
     setTimeout(() => {
       copied.value = false;
     }, 2000);
-  } catch (e) {
-    console.error('Failed to copy password', e);
   }
 }
 </script>
