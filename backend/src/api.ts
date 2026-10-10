@@ -1,5 +1,6 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
+import { email } from "./email";
 import type { Account, AttachmentMeta, Domain, Env, Message } from "./types";
 import { generatePassword, hashPassword, signJWT, verifyJWT, verifyPassword } from "./crypto";
 import { generateUsername, getRandomDomain } from "./generator";
@@ -43,7 +44,8 @@ async function getAuthUser(headers: Headers, env: Env) {
 export const app = new Elysia({ aot: false })
   .use(cors())
   .derive(({ request }) => ({
-    env: (request as unknown as { env: Env }).env
+    env: (request as unknown as { env: Env }).env,
+    ctx: (request as unknown as { ctx?: ExecutionContext }).ctx
   }))
   .get("/api/domains", async ({ env }) => {
     const result = await env.DB.prepare(
@@ -442,4 +444,80 @@ ${message.body_html || message.body_text || ""}`;
     }
 
     return new Response(object.body, { headers });
+  })
+  .post("/api/dev/incoming-email", async ({ body, request, env, ctx, set }) => {
+    if (env.ENVIRONMENT === "production") {
+      set.status = 403;
+      return { error: "Dev endpoint disabled in production" };
+    }
+
+    let rawEmail = "";
+    if (typeof body === "string" && body.length > 0) {
+      rawEmail = body;
+    } else {
+      try {
+        rawEmail = await request.text();
+      } catch {
+        rawEmail = "";
+      }
+    }
+
+    if (!rawEmail || !rawEmail.trim()) {
+      set.status = 400;
+      return { error: "Empty email payload" };
+    }
+
+    const headerSection = rawEmail.split(/\r?\n\r?\n/)[0] || "";
+    const headers = new Headers();
+    const unfoldedHeaders = headerSection.replace(/\r?\n[ \t]+/g, " ");
+    for (const line of unfoldedHeaders.split(/\r?\n/)) {
+      const colonIdx = line.indexOf(":");
+      if (colonIdx > 0) {
+        const key = line.slice(0, colonIdx).trim();
+        const value = line.slice(colonIdx + 1).trim();
+        headers.append(key, value);
+      }
+    }
+
+    function extractAddress(val: string): string {
+      const match = val.match(/<([^>]+)>/);
+      return match ? match[1].trim() : val.trim();
+    }
+
+    const to = extractAddress(
+      request.headers.get("x-to") || headers.get("to") || ""
+    );
+    const from = extractAddress(
+      request.headers.get("x-from") || headers.get("from") || ""
+    );
+
+    const rawBytes = new TextEncoder().encode(rawEmail);
+    let rejectionReason: string | null = null;
+    const mockMessage = {
+      from,
+      to,
+      headers,
+      raw: new Response(rawBytes).body as ReadableStream<Uint8Array>,
+      rawSize: rawBytes.byteLength,
+      setReject: (reason: string) => {
+        rejectionReason = reason;
+        console.warn(`[dev/incoming-email] Rejected: ${reason}`);
+      },
+      forward: async () => {},
+      reply: async () => {}
+    } as unknown as ForwardableEmailMessage;
+
+    const executionCtx = ctx || ({
+      waitUntil: () => {},
+      passThroughOnException: () => {}
+    } as unknown as ExecutionContext);
+
+    await email(mockMessage, env, executionCtx);
+
+    if (rejectionReason) {
+      set.status = 400;
+      return { error: `Email rejected: ${rejectionReason}` };
+    }
+
+    return { success: true, message: "Email processed" };
   });
