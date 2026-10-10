@@ -830,6 +830,10 @@ onUnmounted(() => {
                       <div class="mt-1 flex items-center text-sm/5 text-gray-500 dark:text-gray-400">
                         <Envelope class="text-gray-400 mr-1.5 size-4 shrink-0" />
                         <span class="truncate">{{ msg.from_address }}</span>
+                        <Paperclip
+                          v-if="msg.has_attachments === 1"
+                          class="md:hidden ml-1.5 size-3.5 shrink-0 text-gray-400 dark:text-gray-500"
+                        />
                       </div>
                     </div>
                     <div class="hidden md:block">
@@ -838,6 +842,10 @@ onUnmounted(() => {
                           <span class="truncate text-sm/5 text-gray-900 dark:text-gray-300">
                             {{ msg.subject || '(No subject)' }}
                           </span>
+                          <Paperclip
+                            v-if="msg.has_attachments === 1"
+                            class="size-3.5 shrink-0 text-gray-400 dark:text-gray-500"
+                          />
                           <button
                             v-if="getMsgOtp(msg)"
                             type="button"
@@ -1126,6 +1134,48 @@ onUnmounted(() => {
               <Copy v-else class="size-3.5 text-gray-500 dark:text-gray-400" />
               <span>{{ copiedKey === 'detail-otp' ? 'Copied!' : 'Copy Code' }}</span>
             </button>
+          </div>
+
+          <!-- Attachments Section -->
+          <div
+            v-if="selectedMessageDetail.attachments && selectedMessageDetail.attachments.length > 0"
+            class="border-b border-gray-200 px-4 py-3.5 sm:px-6 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/40"
+          >
+            <div class="mb-2.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <Paperclip class="size-3.5" />
+              <span>Attachments ({{ selectedMessageDetail.attachments.length }})</span>
+            </div>
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+              <div
+                v-for="att in selectedMessageDetail.attachments"
+                :key="att.id"
+                class="group flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-2.5 text-xs shadow-xs transition hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-gray-600 dark:hover:bg-gray-700/60"
+              >
+                <div class="flex min-w-0 items-center gap-2.5">
+                  <div class="flex size-7 shrink-0 items-center justify-center rounded-md bg-lime-100 text-lime-700 dark:bg-lime-950/60 dark:text-lime-400">
+                    <Paperclip class="size-3.5" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate font-medium text-gray-900 dark:text-gray-200" :title="att.filename">
+                      {{ att.filename }}
+                    </p>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                      {{ formatBytes(att.size) }}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  @click="downloadAttachment(att)"
+                  :disabled="isDownloadingAttachment[att.id]"
+                  class="inline-flex size-7 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-600 transition hover:bg-white hover:text-gray-900 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-700/50 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white cursor-pointer"
+                  :title="'Download ' + att.filename"
+                >
+                  <Spinner v-if="isDownloadingAttachment[att.id]" class="size-3.5 animate-spin text-lime-600 dark:text-lime-400" />
+                  <Download v-else class="size-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
 
           <div class="px-4 py-5 sm:px-6">
