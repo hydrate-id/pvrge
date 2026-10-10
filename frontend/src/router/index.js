@@ -31,18 +31,30 @@ export const router = createRouter({
   },
 });
 
+function isDutyAuthenticated() {
+  const duty = localStorage.getItem('pvrge_duty_session');
+  if (!duty) return false;
+  try {
+    const parsed = JSON.parse(duty);
+    return Boolean(parsed?.token && parsed?.account?.email === 'support@pvrge.com');
+  } catch {
+    return false;
+  }
+}
+
 router.beforeEach((to, from, next) => {
-  if (to.path.startsWith('/onduty') && to.path !== '/onduty/login') {
-    const duty = localStorage.getItem('pvrge_duty_session');
-    if (duty) {
-      try {
-        const parsed = JSON.parse(duty);
-        if (parsed?.token && parsed?.account?.email === 'support@pvrge.com') {
-          return next();
-        }
-      } catch (e) {}
+  const dutyActive = isDutyAuthenticated();
+  if (dutyActive) {
+    if (to.path === '/' || to.path.startsWith('/view/') || to.path === '/onduty/login') {
+      return next('/onduty');
     }
-    return next({ path: '/onduty/login', query: { redirect: to.fullPath } });
+    return next();
+  }
+  if (!dutyActive) {
+    if (to.path.startsWith('/onduty') && to.path !== '/onduty/login') {
+      return next({ path: '/onduty/login', query: { redirect: to.fullPath } });
+    }
+    return next();
   }
   next();
 });

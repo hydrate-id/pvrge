@@ -13,6 +13,8 @@ function loadDutySession() {
 }
 loadDutySession();
 
+const isDutyActive = computed(() => Boolean(dutySession.value?.token && dutySession.value?.account?.email === 'support@pvrge.com'));
+
 async function loginDuty(password) {
   isLoading.value = true;
   error.value = null;
@@ -36,6 +38,10 @@ async function loginDuty(password) {
 function logoutDuty() {
   localStorage.removeItem('pvrge_duty_session');
   dutySession.value = null;
+  loadSessionsFromStorage();
+  if (accounts.value.length > 0 && !activeAccountId.value) {
+    activeAccountId.value = accounts.value[0].id;
+  }
 }
 
 const accounts = ref([]);
@@ -257,6 +263,7 @@ export function useSession() {
   }
 
   async function initSession() {
+    if (isDutyActive.value) return;
     loadSessionsFromStorage();
 
     // If active account exists but is not in accounts list
@@ -284,6 +291,7 @@ export function useSession() {
 
   return {
     dutySession,
+    isDutyActive,
     loginDuty,
     logoutDuty,
     loadDutySession,
@@ -306,4 +314,4 @@ export function useSession() {
   };
 }
 
-export { dutySession, loginDuty, logoutDuty, loadDutySession, rateLimitState, triggerRateLimit, handleResponseStatus };
+export { dutySession, isDutyActive, loginDuty, logoutDuty, loadDutySession, rateLimitState, triggerRateLimit, handleResponseStatus };

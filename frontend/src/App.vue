@@ -29,7 +29,8 @@ const router = useRouter();
 const session = useSession();
 const { isDark, toggleTheme } = useTheme();
 
-const isOnDuty = computed(() => route.path.startsWith('/onduty'));
+const isDutyActive = session.isDutyActive;
+const isOnDuty = computed(() => isDutyActive.value || route.path.startsWith('/onduty'));
 
 const activeAccount = session.activeAccount;
 const accounts = session.accounts;
@@ -38,11 +39,12 @@ function handleExitDuty() {
   session.logoutDuty();
   isDropdownOpen.value = false;
   router.push('/');
+  session.initSession();
 }
 
 function handleCopyEmail() {
   const email = isOnDuty.value
-    ? (session.dutySession.value?.account?.email || 'support@pvrge.com')
+    ? 'support@pvrge.com'
     : session.activeAccount.value?.email;
   copyEmail(email);
 }
@@ -416,7 +418,7 @@ onUnmounted(() => {
                   :class="[copied ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-gray-400', 'transition-colors duration-200']"
                   readonly
                   type="email"
-                  :value="isOnDuty ? (session.dutySession.value?.account?.email || 'support@pvrge.com') : (session.activeAccount.value?.email || 'Generating address...')"
+                  :value="isOnDuty ? 'support@pvrge.com' : (session.activeAccount.value?.email || 'Generating address...')"
                   @click="handleCopyEmail"
                 />
               </div>
@@ -452,7 +454,7 @@ onUnmounted(() => {
                   title="Manage Accounts"
                 >
                   <span class="inline-flex size-6 items-center justify-center select-none rounded-full text-xs font-bold uppercase bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
-                    {{ (isOnDuty ? (session.dutySession.value?.account?.email || 'support@pvrge.com') : activeAccount?.email)?.charAt(0).toUpperCase() || 'P' }}
+                    {{ isOnDuty ? 'S' : (activeAccount?.email?.charAt(0).toUpperCase() || 'P') }}
                   </span>
                 </button>
               </div>
@@ -475,8 +477,8 @@ onUnmounted(() => {
                     <div class="p-1.5 text-sm">
                       <div class="max-h-48 text-left break-all space-y-0.5">
                         <p class="text-xs text-gray-500 dark:text-gray-400">You are signed in as:</p>
-                        <p class="cursor-pointer text-sm font-medium text-gray-800 select-all dark:text-gray-200 truncate" @click="handleCopyEmail">{{ isOnDuty ? (session.dutySession.value?.account?.email || 'support@pvrge.com') : activeAccount?.email }}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <p class="cursor-pointer text-sm font-medium text-gray-800 select-all dark:text-gray-200 truncate" @click="handleCopyEmail">{{ isOnDuty ? 'support@pvrge.com' : activeAccount?.email }}</p>
+                        <p v-if="!isOnDuty" class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           Password:
                           <span
                             @click="copyPassword"
@@ -492,7 +494,7 @@ onUnmounted(() => {
                   </div>
 
                   <!-- Group 2: Daftar Akun Lain (Multi-Session Switcher) -->
-                  <div v-if="accounts.length > 1" class="p-1 isolate max-h-96 overflow-y-auto space-y-0.5">
+                  <div v-if="!isOnDuty && accounts.length > 1" class="p-1 isolate max-h-96 overflow-y-auto space-y-0.5">
                     <button
                       v-for="acc in accounts.filter(a => a.id !== activeAccount?.id)"
                       :key="acc.id"
@@ -511,6 +513,7 @@ onUnmounted(() => {
                   <div class="p-1 isolate max-h-96 overflow-y-auto space-y-0.5">
                     <!-- Create an account -->
                     <button
+                      v-if="!isOnDuty"
                       type="button"
                       @click="handleCreateAccount"
                       class="w-full flex items-center select-none outline-none rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-950/30 p-1.5 text-sm gap-2 text-emerald-600 dark:text-emerald-400 transition-colors text-left"
@@ -521,6 +524,7 @@ onUnmounted(() => {
 
                     <!-- Log in -->
                     <button
+                      v-if="!isOnDuty"
                       type="button"
                       @click="openLoginModal"
                       class="w-full flex items-center select-none outline-none rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/30 p-1.5 text-sm gap-2 text-blue-600 dark:text-blue-400 transition-colors text-left"
@@ -534,7 +538,7 @@ onUnmounted(() => {
                       v-if="isOnDuty"
                       type="button"
                       @click="handleExitDuty"
-                      class="w-full flex items-center select-none outline-none rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-950/30 p-1.5 text-sm gap-2 text-emerald-600 dark:text-emerald-400 transition-colors text-left"
+                      class="w-full flex items-center select-none outline-none rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 p-1.5 text-sm gap-2 text-rose-600 dark:text-rose-400 transition-colors text-left"
                     >
                       <SignOut class="text-sm shrink-0" />
                       <span class="truncate font-medium">Exit Duty</span>
@@ -542,7 +546,7 @@ onUnmounted(() => {
 
                     <!-- Delete account -->
                     <button
-                      v-else
+                      v-if="!isOnDuty"
                       type="button"
                       @click="handleDeleteCurrentAccount"
                       class="w-full flex items-center select-none outline-none rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 p-1.5 text-sm gap-2 text-rose-600 dark:text-rose-400 transition-colors text-left"
@@ -561,10 +565,10 @@ onUnmounted(() => {
               type="button"
               @click="handleExitDuty"
               title="Exit Duty"
-              class="ml-3 rounded-full p-1 text-gray-400 hover:text-gray-500 outline-none focus:outline-none focus:ring-0 active:outline-none dark:hover:text-gray-300"
+              class="ml-3 rounded-full p-1 text-gray-400 hover:text-rose-600 outline-none focus:outline-none focus:ring-0 active:outline-none dark:hover:text-rose-400"
             >
               <span class="sr-only">Exit Duty</span>
-              <SignOut class="size-6 text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-500 cursor-pointer" />
+              <SignOut class="size-6 text-gray-500 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer" />
             </button>
             <button
               v-else
@@ -573,8 +577,8 @@ onUnmounted(() => {
               title="Delete active account"
               class="ml-3 rounded-full p-1 text-gray-400 hover:text-gray-500 outline-none focus:outline-none focus:ring-0 active:outline-none dark:hover:text-gray-300"
             >
-              <span class="sr-only">Sign out</span>
-              <SignOut class="size-6 text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-500 cursor-pointer" />
+              <span class="sr-only">Delete account</span>
+              <Trash class="size-6 text-gray-500 hover:text-rose-600 dark:hover:text-rose-500 cursor-pointer" />
             </button>
           </div>
         </div>
