@@ -3,6 +3,14 @@ import { cors } from "@elysiajs/cors";
 import type { Account, AttachmentMeta, Domain, Env, Message } from "./types";
 import { generatePassword, hashPassword, signJWT, verifyJWT, verifyPassword } from "./crypto";
 import { generateUsername, getRandomDomain } from "./generator";
+import {
+  checkRateLimit,
+  getClientIp,
+  hashIp,
+  isLoginBlocked,
+  recordFailedLogin,
+  resetFailedLogin
+} from "./rate-limit";
 
 async function getAuthUser(headers: Headers, env: Env) {
   const authHeader = headers.get("authorization");
@@ -27,7 +35,28 @@ export const app = new Elysia({ aot: false })
     ).all<Domain>();
     return { domains: result.results || [] };
   })
-  .post("/api/accounts", async ({ body, env, set }) => {
+  .post("/api/accounts", async ({ body, request, env, set }) => {
+    const clientIp = getClientIp(request.headers);
+
+    // Burst protection (In-Memory): Max 2 requests per 30s per IP
+    const burstCheck = checkRateLimit(`account_burst:${clientIp}`, 2, 30);
+    if (!burstCheck.allowed) {
+      set.status = 429;
+      set.headers["Retry-After"] = String(burstCheck.retryAfter);
+      return { error: "Too many account creation attempts. Please try again later." };
+    }
+
+    // 24-hour limit (Durable D1): Max 5 accounts per day per IP
+    const ipHash = await hashIp(clientIp);
+    const creationCount = await env.DB.prepare(
+      "SELECT COUNT(*) as count FROM ip_creations WHERE ip_hash = ? AND created_at > datetime('now', '-24 hours')"
+    ).bind(ipHash).first<{ count: number }>();
+
+    if (creationCount && creationCount.count >= 5) {
+      set.status = 429;
+      return { error: "Maximum of 5 accounts per day reached for this IP." };
+    }
+
     const reqBody = (body || {}) as { username?: string; domain?: string; password?: string };
     let username = reqBody.username?.trim().toLowerCase();
     let domain = reqBody.domain?.trim().toLowerCase();
@@ -76,6 +105,10 @@ export const app = new Elysia({ aot: false })
       "INSERT INTO accounts (id, email, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?)"
     ).bind(id, email, hash, salt, createdAt).run();
 
+    await env.DB.prepare(
+      "INSERT INTO ip_creations (ip_hash, created_at) VALUES (?, datetime('now'))"
+    ).bind(ipHash).run();
+
     const secret = env.JWT_SECRET || "pvrge-default-secret-key-change-in-prod";
     const token = await signJWT({
       sub: id,
@@ -91,7 +124,17 @@ export const app = new Elysia({ aot: false })
       token
     };
   })
-  .post("/api/auth/token", async ({ body, env, set }) => {
+  .post("/api/auth/token", async ({ body, request, env, set }) => {
+    const clientIp = getClientIp(request.headers);
+
+    // Brute-force protection: Max 5 failed attempts per IP per 15 min (900s)
+    const loginStatus = isLoginBlocked(clientIp);
+    if (loginStatus.blocked) {
+      set.status = 429;
+      set.headers["Retry-After"] = String(loginStatus.retryAfter);
+      return { error: "Too many failed login attempts. Please wait 15 minutes." };
+    }
+
     const reqBody = (body || {}) as { email?: string; password?: string };
     const email = reqBody.email?.trim().toLowerCase();
     const password = reqBody.password;
@@ -106,15 +149,20 @@ export const app = new Elysia({ aot: false })
     ).bind(email).first<Account>();
 
     if (!account) {
+      recordFailedLogin(clientIp);
       set.status = 401;
       return { error: "Invalid email or password" };
     }
 
     const valid = await verifyPassword(password, account.password_hash, account.password_salt);
     if (!valid) {
+      recordFailedLogin(clientIp);
       set.status = 401;
       return { error: "Invalid email or password" };
     }
+
+    // Reset failed attempts on success
+    resetFailedLogin(clientIp);
 
     const secret = env.JWT_SECRET || "pvrge-default-secret-key-change-in-prod";
     const token = await signJWT({
@@ -185,10 +233,28 @@ export const app = new Elysia({ aot: false })
     return { success: true };
   })
   .get("/api/messages", async ({ request, env, set }) => {
+    const clientIp = getClientIp(request.headers);
+
+    // Per-IP aggregate: Max 30 requests per 10s
+    const ipLimit = checkRateLimit(`poll_ip:${clientIp}`, 30, 10);
+    if (!ipLimit.allowed) {
+      set.status = 429;
+      set.headers["Retry-After"] = String(ipLimit.retryAfter);
+      return { error: "Rate limit exceeded" };
+    }
+
     const user = await getAuthUser(request.headers, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
+    }
+
+    // Per-account token: Max 3 requests per 6s
+    const accountLimit = checkRateLimit(`poll_account:${user.id}`, 3, 6);
+    if (!accountLimit.allowed) {
+      set.status = 429;
+      set.headers["Retry-After"] = String(accountLimit.retryAfter);
+      return { error: "Rate limit exceeded" };
     }
 
     const result = await env.DB.prepare(

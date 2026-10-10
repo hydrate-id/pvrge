@@ -35,3 +35,10 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_account ON messages(account_id);
 CREATE INDEX IF NOT EXISTS idx_messages_expires ON messages(expires_at);
+
+CREATE TABLE IF NOT EXISTS ip_creations (
+    ip_hash TEXT,
+    created_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ip_creations_hash_date ON ip_creations(ip_hash, created_at);
