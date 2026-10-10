@@ -19,6 +19,8 @@ import User from '@primeicons/vue/user';
 import SignIn from '@primeicons/vue/sign-in';
 import Trash from '@primeicons/vue/trash';
 import Times from '@primeicons/vue/times';
+import CheckCircle from '@primeicons/vue/check-circle';
+import Envelope from '@primeicons/vue/envelope';
 
 const route = useRoute();
 const router = useRouter();
@@ -377,34 +379,19 @@ onUnmounted(() => {
               <label for="Dont_use_WEB_use_API_OK" class="sr-only">Email</label>
               <div class="group relative w-full text-gray-400 flex items-center">
                 <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-1">
-                  <svg class="size-5 text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                  </svg>
+                  <CheckCircle v-if="copied" class="size-5 text-emerald-600 dark:text-emerald-400 transition-colors duration-200" />
+                  <Envelope v-else class="size-5 text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-500 transition-colors duration-200" />
                 </div>
                 <input
                   id="Dont_use_WEB_use_API_OK"
                   placeholder="..."
-                  class="block size-full cursor-pointer border-transparent py-2 pr-3 pl-8 text-gray-600 select-all group-hover:text-gray-900 focus:border-transparent focus:placeholder-gray-400 focus:ring-0 focus:outline-none sm:text-sm dark:bg-gray-900 dark:text-gray-300 dark:group-hover:text-gray-400 font-mono"
+                  class="block size-full cursor-pointer border-transparent py-2 pr-3 pl-8 select-all focus:border-transparent focus:placeholder-gray-400 focus:ring-0 focus:outline-none sm:text-sm dark:bg-gray-900 font-mono"
+                  :class="[copied ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-gray-400', 'transition-colors duration-200']"
                   readonly
                   type="email"
                   :value="activeAccount?.email || 'Generating...'"
                   @click="handleCopyEmail"
                 />
-                <transition
-                  enter-active-class="transition duration-150 ease-out"
-                  enter-from-class="opacity-0 -translate-y-1"
-                  enter-to-class="opacity-100 translate-y-0"
-                  leave-active-class="transition duration-100 ease-in"
-                  leave-from-class="opacity-100 translate-y-0"
-                  leave-to-class="opacity-0 -translate-y-1"
-                >
-                  <span
-                    v-if="copied"
-                    class="absolute left-8 top-full mt-1.5 z-50 rounded bg-gray-900 dark:bg-gray-700 px-2 py-0.5 text-xs font-medium text-white shadow-md pointer-events-none"
-                  >
-                    Copied!
-                  </span>
-                </transition>
               </div>
             </div>
           </div>
