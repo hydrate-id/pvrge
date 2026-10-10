@@ -687,7 +687,20 @@ onUnmounted(() => {
                     </div>
                   </div>
                 </div>
-                <ChevronRight class="size-5 text-gray-400" />
+            <div class="flex items-center gap-2 shrink-0 ml-2">
+              <button
+                v-if="getMsgOtp(msg)"
+                type="button"
+                @click.stop.prevent="copyToClipboard(getMsgOtp(msg), 'otp-' + msg.id)"
+                class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-mono font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-700 shadow-xs transition cursor-pointer"
+                title="Copy verification code"
+              >
+                <Check v-if="copiedKey === 'otp-' + msg.id" class="size-3 text-emerald-600 dark:text-emerald-400" />
+                <Copy v-else class="size-3 text-emerald-700 dark:text-emerald-400" />
+                <span>{{ copiedKey === 'otp-' + msg.id ? 'Copied!' : getMsgOtp(msg) }}</span>
+              </button>
+              <ChevronRight class="size-5 text-gray-400" />
+            </div>
               </div>
             </div>
           </li>
