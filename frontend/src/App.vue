@@ -385,7 +385,7 @@ onUnmounted(() => {
                 <input
                   id="Dont_use_WEB_use_API_OK"
                   placeholder="..."
-                  class="block size-full cursor-pointer border-transparent py-2 pr-3 pl-8 select-all focus:border-transparent focus:placeholder-gray-400 focus:ring-0 focus:outline-none sm:text-sm dark:bg-gray-900 font-mono"
+                  class="block size-full cursor-pointer border-transparent bg-transparent py-2 pr-3 pl-8 select-all focus:border-transparent focus:placeholder-gray-400 focus:ring-0 focus:outline-none sm:text-sm font-mono"
                   :class="[copied ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-gray-400', 'transition-colors duration-200']"
                   readonly
                   type="email"
