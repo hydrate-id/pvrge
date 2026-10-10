@@ -193,6 +193,7 @@ onUnmounted(() => {
             to="/"
             @click="mobileMenuOpen = false"
             class="group flex items-center rounded-md px-2 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
+            :class="{ 'bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white': route.path === '/' || route.path.startsWith('/view') }"
             active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
             exact-active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
           >
@@ -278,6 +279,7 @@ onUnmounted(() => {
           <router-link
             to="/"
             class="group flex items-center rounded-md px-2 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
+            :class="{ 'bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white': route.path === '/' || route.path.startsWith('/view') }"
             active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
             exact-active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
           >

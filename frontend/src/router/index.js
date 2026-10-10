@@ -7,6 +7,8 @@ import ContactView from '../views/ContactView.vue';
 
 const routes = [
   { path: '/', name: 'inbox', component: InboxView },
+  { path: '/view/:id', name: 'message-detail', component: InboxView },
+  { path: '/view/:id/source', name: 'message-source', component: InboxView },
   { path: '/faq', name: 'faq', component: FaqView },
   { path: '/privacy', name: 'privacy', component: PrivacyView },
   { path: '/terms', name: 'terms', component: TermsView },

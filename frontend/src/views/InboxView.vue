@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useSession } from '../composables/useSession';
 import EnvelopeIllustration from '../components/EnvelopeIllustration.vue';
 import Envelope from '@primeicons/vue/envelope';
@@ -26,18 +27,20 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+const route = useRoute();
+const router = useRouter();
 const session = useSession();
 const { activeAccount, rateLimitState, handleResponseStatus } = session;
 
 const messages = ref([]);
-const selectedMessageId = ref(null);
+const selectedMessageId = computed(() => route.params.id || null);
 const selectedMessageDetail = ref(null);
 const isLoadingList = ref(false);
 const isLoadingDetail = ref(false);
 const isDeleting = ref(false);
 const isDownloadingAttachment = ref({});
 const showActionsMenu = ref(false);
-const isShowingSource = ref(false);
+const isShowingSource = computed(() => route.name === 'message-source' || route.path.endsWith('/source'));
 const rawSourceText = ref('');
 const viewMode = ref('html'); // 'html' or 'text'
 const readMessageIds = ref(new Set());
@@ -240,12 +243,6 @@ async function fetchMessages(quiet = false) {
     // Calculate total size for storage indicator
     const totalBytes = messages.value.reduce((acc, m) => acc + (m.size || 0), 0);
     session.setStorageBytes(totalBytes);
-
-    // If selected message is no longer in list, clear selection
-    if (selectedMessageId.value && !messages.value.find((m) => m.id === selectedMessageId.value)) {
-      selectedMessageId.value = null;
-      selectedMessageDetail.value = null;
-    }
   } catch (err) {
     console.error('Error fetching messages:', err);
   } finally {
@@ -280,21 +277,55 @@ async function fetchMessageDetail(id) {
   }
 }
 
+async function fetchSource(id) {
+  const token = session.activeAccount.value?.token;
+  if (!token || !id) return;
+
+  isLoadingDetail.value = true;
+  try {
+    const res = await fetch(`/api/messages/${id}/source`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (res.ok) {
+      rawSourceText.value = await res.text();
+    }
+  } catch (err) {
+    console.error('Failed to fetch message source:', err);
+  } finally {
+    isLoadingDetail.value = false;
+  }
+}
+
+watch(
+  [() => route.params.id, () => session.activeAccount.value?.token, () => route.name],
+  async ([id, token, routeName]) => {
+    if (!id || !token) {
+      selectedMessageDetail.value = null;
+      rawSourceText.value = '';
+      return;
+    }
+    if (selectedMessageDetail.value?.id !== id) {
+      rawSourceText.value = '';
+      await fetchMessageDetail(id);
+    }
+    if (routeName === 'message-source' || route.path.endsWith('/source')) {
+      if (!rawSourceText.value) {
+        await fetchSource(id);
+      }
+    }
+  },
+  { immediate: true }
+);
+
 function selectMessage(msgOrId) {
   const id = typeof msgOrId === 'object' && msgOrId !== null ? msgOrId.id : msgOrId;
-  selectedMessageId.value = id;
-  isShowingSource.value = false;
-  rawSourceText.value = '';
-  showActionsMenu.value = false;
-  fetchMessageDetail(id);
+  router.push('/view/' + id);
 }
 
 function deselectMessage() {
-  selectedMessageId.value = null;
-  selectedMessageDetail.value = null;
-  isShowingSource.value = false;
-  rawSourceText.value = '';
-  showActionsMenu.value = false;
+  router.push('/');
 }
 
 function downloadEmail() {
@@ -318,27 +349,14 @@ function downloadEmail() {
 async function toggleSource() {
   showActionsMenu.value = false;
   if (isShowingSource.value) {
-    isShowingSource.value = false;
-    return;
-  }
-
-  const token = session.activeAccount.value?.token;
-  const id = selectedMessageDetail.value?.id;
-  if (token && id) {
-    try {
-      const res = await fetch(`/api/messages/${id}/source`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (res.ok) {
-        rawSourceText.value = await res.text();
-      }
-    } catch (err) {
-      console.error('Failed to fetch message source:', err);
+    if (selectedMessageDetail.value?.id) {
+      router.push('/view/' + selectedMessageDetail.value.id);
+    }
+  } else {
+    if (selectedMessageDetail.value?.id) {
+      router.push('/view/' + selectedMessageDetail.value.id + '/source');
     }
   }
-  isShowingSource.value = true;
 }
 
 function printEmail() {
@@ -413,7 +431,8 @@ async function confirmDeleteMessage() {
     messages.value = messages.value.filter((m) => m.id !== id);
     const totalBytes = messages.value.reduce((acc, m) => acc + (m.size || 0), 0);
     session.setStorageBytes(totalBytes);
-    deselectMessage();
+    showDeleteMessageDialog.value = false;
+    router.push('/');
   } catch (err) {
     errorDialog.value = {
       open: true,
@@ -509,13 +528,14 @@ function handleExternalRefresh() {
 watch(
   () => session.activeAccountId.value,
   (newId) => {
-    selectedMessageId.value = null;
     selectedMessageDetail.value = null;
-    isShowingSource.value = false;
     rawSourceText.value = '';
     hasInitialFetch.value = false;
     if (typeof document !== 'undefined') {
       document.title = defaultTitle.value;
+    }
+    if (route.params.id) {
+      router.push('/');
     }
     if (newId) {
       fetchMessages(false);
@@ -649,7 +669,7 @@ onUnmounted(() => {
         <ul class="divide-y divide-gray-200 dark:divide-gray-700/50">
           <li v-for="msg in messages" :key="msg.id">
             <div
-              @click="selectMessage(msg.id)"
+              @click="router.push('/view/' + msg.id)"
               class="group block transition hover:bg-gray-50 focus:outline-none dark:hover:bg-gray-900/50 dark:focus:bg-gray-900/50 cursor-pointer"
             >
               <div class="flex items-center p-4 sm:px-6">
@@ -667,8 +687,21 @@ onUnmounted(() => {
                   </div>
                   <div class="min-w-0 flex-1 px-4 md:grid md:grid-cols-2 md:gap-4">
                     <div class="min-w-0 flex-auto">
-                      <div class="truncate text-sm/5 font-medium text-emerald-600 dark:text-emerald-400">
-                        {{ msg.from_name || msg.from_address }}
+                      <div class="flex items-center gap-2">
+                        <span class="truncate text-sm/5 font-medium text-emerald-600 dark:text-emerald-400">
+                          {{ msg.from_name || msg.from_address }}
+                        </span>
+                        <button
+                          v-if="getMsgOtp(msg)"
+                          type="button"
+                          @click.stop.prevent="copyToClipboard(getMsgOtp(msg), 'otp-' + msg.id)"
+                          class="md:hidden inline-flex items-center gap-1 shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-mono font-medium bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-700/60 shadow-xs transition cursor-pointer"
+                          title="Copy verification code"
+                        >
+                          <Check v-if="copiedKey === 'otp-' + msg.id" class="size-3 text-emerald-600 dark:text-emerald-400" />
+                          <Copy v-else class="size-3 text-emerald-700 dark:text-emerald-400" />
+                          <span>{{ copiedKey === 'otp-' + msg.id ? 'Copied!' : getMsgOtp(msg) }}</span>
+                        </button>
                       </div>
                       <div class="mt-1 flex items-center text-sm/5 text-gray-500 dark:text-gray-400">
                         <Envelope class="text-gray-400 mr-1.5 size-4 shrink-0" />
@@ -677,8 +710,21 @@ onUnmounted(() => {
                     </div>
                     <div class="hidden md:block">
                       <div>
-                        <div class="truncate text-sm/5 text-gray-900 dark:text-gray-300">
-                          {{ msg.subject || '(No subject)' }}
+                        <div class="flex items-center gap-2">
+                          <span class="truncate text-sm/5 text-gray-900 dark:text-gray-300">
+                            {{ msg.subject || '(No subject)' }}
+                          </span>
+                          <button
+                            v-if="getMsgOtp(msg)"
+                            type="button"
+                            @click.stop.prevent="copyToClipboard(getMsgOtp(msg), 'otp-' + msg.id)"
+                            class="inline-flex items-center gap-1 shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-mono font-medium bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-700/60 shadow-xs transition cursor-pointer"
+                            title="Copy verification code"
+                          >
+                            <Check v-if="copiedKey === 'otp-' + msg.id" class="size-3 text-emerald-600 dark:text-emerald-400" />
+                            <Copy v-else class="size-3 text-emerald-700 dark:text-emerald-400" />
+                            <span>{{ copiedKey === 'otp-' + msg.id ? 'Copied!' : getMsgOtp(msg) }}</span>
+                          </button>
                         </div>
                         <div class="mt-1 flex items-center truncate text-sm/5 text-gray-400 dark:text-gray-400">
                           {{ msg.intro || msg.snippet }}
@@ -687,20 +733,9 @@ onUnmounted(() => {
                     </div>
                   </div>
                 </div>
-            <div class="flex items-center gap-2 shrink-0 ml-2">
-              <button
-                v-if="getMsgOtp(msg)"
-                type="button"
-                @click.stop.prevent="copyToClipboard(getMsgOtp(msg), 'otp-' + msg.id)"
-                class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-mono font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-700 shadow-xs transition cursor-pointer"
-                title="Copy verification code"
-              >
-                <Check v-if="copiedKey === 'otp-' + msg.id" class="size-3 text-emerald-600 dark:text-emerald-400" />
-                <Copy v-else class="size-3 text-emerald-700 dark:text-emerald-400" />
-                <span>{{ copiedKey === 'otp-' + msg.id ? 'Copied!' : getMsgOtp(msg) }}</span>
-              </button>
-              <ChevronRight class="size-5 text-gray-400" />
-            </div>
+                <div class="shrink-0 ml-4">
+                  <ChevronRight class="size-5 text-gray-400" />
+                </div>
               </div>
             </div>
           </li>
@@ -719,17 +754,16 @@ onUnmounted(() => {
         <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Loading message content...</p>
       </div>
 
-      <div v-if="isShowingSource">
-        <a
-          href="#"
-          @click.prevent="isShowingSource = false"
+      <div v-else-if="isShowingSource">
+        <router-link
+          :to="'/view/' + (selectedMessageDetail?.id || route.params.id)"
           class="flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500 mb-2"
         >
           <svg class="mr-1 -ml-1 size-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"></path>
           </svg>
           Back
-        </a>
+        </router-link>
 
         <div class="mt-2 md:flex md:items-center md:justify-between">
           <div class="min-w-0 flex-1">
@@ -767,10 +801,10 @@ onUnmounted(() => {
                 <span>Download</span>
               </button>
 
-              <!-- Source -->
+              <!-- View message -->
               <button
                 type="button"
-                @click="toggleSource"
+                @click="() => { showActionsMenu = false; router.push('/view/' + (selectedMessageDetail?.id || route.params.id)); }"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Code class="size-4 shrink-0" />
@@ -814,12 +848,12 @@ onUnmounted(() => {
       </div>
 
       <div v-else-if="selectedMessageDetail">
-        <a href="#" @click.prevent="deselectMessage" class="flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500">
+        <router-link to="/" class="flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500">
           <svg class="mr-1 -ml-1 size-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"></path>
           </svg>
           Back
-        </a>
+        </router-link>
 
         <div class="mt-2 md:flex md:items-center md:justify-between">
           <div class="min-w-0 flex-1">
@@ -863,7 +897,7 @@ onUnmounted(() => {
               <!-- Source -->
               <button
                 type="button"
-                @click="toggleSource"
+                @click="() => { showActionsMenu = false; router.push('/view/' + selectedMessageDetail.id + '/source'); }"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Code class="size-4 shrink-0" />
