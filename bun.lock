@@ -4,23 +4,19 @@
   "workspaces": {
     "": {
       "name": "pvrge-monorepo",
-    },
-    "backend": {
-      "name": "pvrge-backend",
-      "version": "1.0.0",
       "dependencies": {
         "@elysiajs/cors": "^1.2.0",
         "elysia": "^1.2.10",
         "postal-mime": "^2.3.0",
       },
       "devDependencies": {
-        "@cloudflare/workers-types": "^4.20250224.0",
+        "@cloudflare/workers-types": "^4.20250204.0",
         "typescript": "^5.7.3",
-        "wrangler": "^3.111.0",
+        "wrangler": "^3.109.1",
       },
     },
-    "frontend": {
-      "name": "pvrge-frontend",
+    "web": {
+      "name": "pvrge-web",
       "version": "1.0.0",
       "dependencies": {
         "@lucide/vue": "^1.54.0",
@@ -1017,9 +1013,7 @@
 
     "punycode": ["punycode@2.3.1", "", {}, "sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg=="],
 
-    "pvrge-backend": ["pvrge-backend@workspace:backend"],
-
-    "pvrge-frontend": ["pvrge-frontend@workspace:frontend"],
+    "pvrge-web": ["pvrge-web@workspace:web"],
 
     "qified": ["qified@0.10.1", "", { "dependencies": { "hookified": "^2.1.1" } }, "sha512-+Owyggi9IxT1ePKGafcI87ubSmxol6smwJ+RAHDQlx9+9cPwFWDiKFFCPuWhr9ignlGpZ9vDQLw67N4dcTVFEA=="],
 
