@@ -315,8 +315,8 @@ async function fetchSource(id) {
 }
 
 watch(
-  [() => route.params.id, () => currentToken.value, () => route.name],
-  async ([id, token, routeName]) => {
+  [() => route.params.id, () => currentToken.value, () => route.path],
+  async ([id, token, path]) => {
     if (!id || !token) {
       selectedMessageDetail.value = null;
       rawSourceText.value = '';
@@ -326,7 +326,7 @@ watch(
       rawSourceText.value = '';
       await fetchMessageDetail(id);
     }
-    if (routeName === 'message-source' || route.path.endsWith('/source')) {
+    if (path && path.endsWith('/source')) {
       if (!rawSourceText.value) {
         await fetchSource(id);
       }
@@ -362,16 +362,15 @@ function downloadEmail() {
   showActionsMenu.value = false;
 }
 
-async function toggleSource() {
+function toggleSource() {
   showActionsMenu.value = false;
+  const id = selectedMessageDetail.value?.id || route.params.id;
+  if (!id) return;
+  const prefix = routePrefix.value || '';
   if (isShowingSource.value) {
-    if (selectedMessageDetail.value?.id) {
-      router.push(routePrefix.value + '/view/' + selectedMessageDetail.value.id);
-    }
+    router.push(prefix + '/view/' + id);
   } else {
-    if (selectedMessageDetail.value?.id) {
-      router.push(routePrefix.value + '/view/' + (selectedMessageDetail?.id || route.params.id) + '/source');
-    }
+    router.push(prefix + '/view/' + id + '/source');
   }
 }
 
@@ -881,7 +880,7 @@ onUnmounted(() => {
 
       <div v-else-if="isShowingSource">
         <router-link
-          :to="routePrefix.value + '/view/' + (selectedMessageDetail?.id || route.params.id)"
+          :to="(routePrefix || '') + '/view/' + (selectedMessageDetail?.id || route.params.id)"
           class="inline-flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500 mb-2"
         >
           <svg class="mr-1 -ml-1 size-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -929,7 +928,7 @@ onUnmounted(() => {
               <!-- View message -->
               <button
                 type="button"
-                @click="() => { showActionsMenu = false; router.push(routePrefix.value + '/view/' + (selectedMessageDetail?.id || route.params.id)); }"
+                @click="toggleSource"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Code class="size-4 shrink-0" />
@@ -973,7 +972,7 @@ onUnmounted(() => {
       </div>
 
       <div v-else-if="selectedMessageDetail">
-        <router-link :to="routePrefix.value || '/'" class="inline-flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500">
+        <router-link :to="routePrefix || '/'" class="inline-flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500">
           <svg class="mr-1 -ml-1 size-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"></path>
           </svg>
@@ -1022,7 +1021,7 @@ onUnmounted(() => {
               <!-- Source -->
               <button
                 type="button"
-                @click="() => { showActionsMenu = false; router.push(routePrefix.value + '/view/' + (selectedMessageDetail?.id || route.params.id) + '/source'); }"
+                @click="toggleSource"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Code class="size-4 shrink-0" />
