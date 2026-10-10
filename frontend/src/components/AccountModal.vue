@@ -99,7 +99,7 @@ async function handleLogin() {
 
   const cleanEmail = loginEmail.value.trim().toLowerCase();
   if (cleanEmail === 'support@pvrge.com') {
-    errorMsg.value = 'On-duty account must log in via /onduty/login.';
+    errorMsg.value = 'Invalid email or password';
     return;
   }
 

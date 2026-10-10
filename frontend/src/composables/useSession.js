@@ -178,7 +178,7 @@ export function useSession() {
 
   async function loginAccount({ email, password }) {
     if (email && email.trim().toLowerCase() === 'support@pvrge.com') {
-      throw new Error('On-duty account can only log in via /onduty/login.');
+      throw new Error('Invalid email or password');
     }
 
     isLoading.value = true;
