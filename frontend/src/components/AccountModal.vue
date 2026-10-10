@@ -14,6 +14,8 @@ import Times from '@primeicons/vue/times';
 import ExclamationCircle from '@primeicons/vue/exclamation-circle';
 import Sparkles from '@primeicons/vue/sparkles';
 import Spinner from '@primeicons/vue/spinner';
+import Eye from '@primeicons/vue/eye';
+import EyeSlash from '@primeicons/vue/eye-slash';
 
 const props = defineProps({
   isOpen: Boolean,
@@ -33,10 +35,12 @@ const username = ref('');
 const selectedDomain = ref('');
 const password = ref('');
 const domains = ref([]);
+const showCreatePassword = ref(false);
 
 // Login form fields
 const loginEmail = ref('');
 const loginPassword = ref('');
+const showLoginPassword = ref(false);
 
 const errorMsg = ref('');
 const isSubmitting = ref(false);
@@ -207,12 +211,24 @@ async function handleLogin() {
           <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
             Custom Password (optional)
           </label>
-          <input
-            v-model="password"
-            type="password"
-            placeholder="Leave blank for auto-generated"
-            class="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-          />
+          <div class="relative">
+            <input
+              v-model="password"
+              :type="showCreatePassword ? 'text' : 'password'"
+              placeholder="Leave blank for auto-generated"
+              class="w-full pl-3.5 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+            />
+            <button
+              type="button"
+              @click="showCreatePassword = !showCreatePassword"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none transition cursor-pointer"
+              tabindex="-1"
+              :title="showCreatePassword ? 'Hide password' : 'Show password'"
+            >
+              <EyeSlash v-if="showCreatePassword" class="size-4" />
+              <Eye v-else class="size-4" />
+            </button>
+          </div>
         </div>
 
         <div class="pt-2 flex justify-end gap-2">
@@ -254,13 +270,25 @@ async function handleLogin() {
           <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
             Password
           </label>
-          <input
-            v-model="loginPassword"
-            type="password"
-            required
-            placeholder="Enter account password"
-            class="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-          />
+          <div class="relative">
+            <input
+              v-model="loginPassword"
+              :type="showLoginPassword ? 'text' : 'password'"
+              required
+              placeholder="Enter account password"
+              class="w-full pl-3.5 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+            />
+            <button
+              type="button"
+              @click="showLoginPassword = !showLoginPassword"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none transition cursor-pointer"
+              tabindex="-1"
+              :title="showLoginPassword ? 'Hide password' : 'Show password'"
+            >
+              <EyeSlash v-if="showLoginPassword" class="size-4" />
+              <Eye v-else class="size-4" />
+            </button>
+          </div>
         </div>
 
         <div class="pt-2 flex justify-end gap-2">
