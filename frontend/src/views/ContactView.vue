@@ -43,7 +43,7 @@
           </div>
         </div>
         <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
-          For technical issues, bug reports, DMCA concerns, or reporting domain abuse, contact our email desk.
+          For technical issues, bug reports, DMCA concerns, or domain abuse, contact our team.
         </p>
         <a
           href="mailto:support@pvrge.com"
