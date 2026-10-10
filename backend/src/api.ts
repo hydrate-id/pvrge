@@ -80,6 +80,11 @@ export const app = new Elysia({ aot: false })
     let domain = reqBody.domain?.trim().toLowerCase();
     let password = reqBody.password;
 
+    if (username === "support" && domain === "pvrge.com") {
+      set.status = 400;
+      return { error: "This email address is reserved." };
+    }
+
     if (!domain) {
       domain = await getRandomDomain(env.DB);
     } else {
@@ -222,6 +227,11 @@ export const app = new Elysia({ aot: false })
       return { error: "Unauthorized" };
     }
 
+    if (user.email === "support@pvrge.com") {
+      set.status = 403;
+      return { error: "Admin account cannot be deleted." };
+    }
+
     const messages = await env.DB.prepare(
       "SELECT id, raw_r2_key, attachments_json FROM messages WHERE account_id = ?"
     ).bind(user.id).all<{ id: string; raw_r2_key: string | null; attachments_json: string | null }>();
@@ -276,7 +286,7 @@ export const app = new Elysia({ aot: false })
     }
 
     const result = await env.DB.prepare(
-      "SELECT id, sender_email, sender_name, subject, snippet, has_attachments, COALESCE(auth_status, 'none') as auth_status, received_at, expires_at FROM messages WHERE account_id = ? AND expires_at > datetime('now') ORDER BY received_at DESC"
+      "SELECT id, sender_email, sender_name, subject, snippet, has_attachments, COALESCE(auth_status, 'none') as auth_status, received_at, expires_at FROM messages WHERE account_id = ? AND (expires_at IS NULL OR expires_at > datetime('now')) ORDER BY received_at DESC"
     ).bind(user.id).all<Message>();
 
     const messages = (result.results || []).map((msg) => ({
@@ -285,6 +295,29 @@ export const app = new Elysia({ aot: false })
     }));
 
     return { messages };
+  })
+  .get("/api/admin/users", async ({ request, env, set }) => {
+    const user = await getAuthUser(request.headers, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (user.email !== "support@pvrge.com") {
+      set.status = 403;
+      return { error: "Forbidden: Admin access required" };
+    }
+
+    const result = await env.DB.prepare(
+      `SELECT a.id, a.email, a.created_at, COUNT(m.id) as message_count
+       FROM accounts a
+       LEFT JOIN messages m ON a.id = m.account_id
+       GROUP BY a.id, a.email, a.created_at
+       ORDER BY a.created_at DESC;`
+    ).all<{ id: string; email: string; created_at: string; message_count: number }>();
+
+    const users = result.results || [];
+    return { users, total: users.length };
   })
   .get("/api/messages/:id", async ({ params, request, env, set }) => {
     const user = await getAuthUser(request.headers, env);

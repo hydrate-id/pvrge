@@ -53,7 +53,7 @@ export async function email(
   const messageId = crypto.randomUUID();
   const rawR2Key = `emails/${account.id}/${messageId}/raw.eml`;
   const receivedAt = new Date();
-  const expiresAt = new Date(receivedAt.getTime() + 24 * 60 * 60 * 1000);
+  const expiresAt = recipient === "support@pvrge.com" ? null : new Date(receivedAt.getTime() + 24 * 60 * 60 * 1000);
 
   // Save raw .eml to R2
   await env.STORAGE.put(rawR2Key, rawBuffer, {
@@ -92,7 +92,7 @@ export async function email(
       null,
       authStatus,
       receivedAt.toISOString(),
-      expiresAt.toISOString()
+      expiresAt ? expiresAt.toISOString() : null
     ).run();
 
     return;
@@ -157,6 +157,6 @@ export async function email(
     attachmentsMeta.length > 0 ? JSON.stringify(attachmentsMeta) : null,
     authStatus,
     receivedAt.toISOString(),
-    expiresAt.toISOString()
+    expiresAt ? expiresAt.toISOString() : null
   ).run();
 }
