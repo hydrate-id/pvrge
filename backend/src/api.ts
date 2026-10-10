@@ -12,13 +12,29 @@ import {
   resetFailedLogin
 } from "./rate-limit";
 
+function getJwtSecret(env: Env): string {
+  if (!env.JWT_SECRET) {
+    if (env.ENVIRONMENT === "production") {
+      console.error(
+        "[CRITICAL] JWT_SECRET is not configured in production! Set it immediately using 'wrangler secret put JWT_SECRET'."
+      );
+    } else {
+      console.warn(
+        "[WARN] JWT_SECRET is not set. Using default insecure dev secret. Run 'wrangler secret put JWT_SECRET' for production."
+      );
+    }
+    return "pvrge-default-secret-key-change-in-prod";
+  }
+  return env.JWT_SECRET;
+}
+
 async function getAuthUser(headers: Headers, env: Env) {
   const authHeader = headers.get("authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return null;
   }
   const token = authHeader.slice(7).trim();
-  const secret = env.JWT_SECRET || "pvrge-default-secret-key-change-in-prod";
+  const secret = getJwtSecret(env);
   const payload = await verifyJWT(token, secret);
   if (!payload) return null;
   return { id: payload.sub, email: payload.email };
@@ -109,7 +125,7 @@ export const app = new Elysia({ aot: false })
       "INSERT INTO ip_creations (ip_hash, created_at) VALUES (?, datetime('now'))"
     ).bind(ipHash).run();
 
-    const secret = env.JWT_SECRET || "pvrge-default-secret-key-change-in-prod";
+    const secret = getJwtSecret(env);
     const token = await signJWT({
       sub: id,
       email,
@@ -164,7 +180,7 @@ export const app = new Elysia({ aot: false })
     // Reset failed attempts on success
     resetFailedLogin(clientIp);
 
-    const secret = env.JWT_SECRET || "pvrge-default-secret-key-change-in-prod";
+    const secret = getJwtSecret(env);
     const token = await signJWT({
       sub: account.id,
       email: account.email,

@@ -23,13 +23,11 @@ export async function email(
     return;
   }
 
-  // Parse MIME
   const rawBuffer = await new Response(message.raw).arrayBuffer();
-  const parser = new PostalMime();
-  const parsed = await parser.parse(rawBuffer);
-
   const messageId = crypto.randomUUID();
   const rawR2Key = `emails/${account.id}/${messageId}/raw.eml`;
+  const receivedAt = new Date();
+  const expiresAt = new Date(receivedAt.getTime() + 24 * 60 * 60 * 1000);
 
   // Save raw .eml to R2
   await env.STORAGE.put(rawR2Key, rawBuffer, {
@@ -38,11 +36,46 @@ export async function email(
     }
   });
 
-  // Save attachments to R2
+  // Parse MIME with corruption fallback
+  let parsed;
+  try {
+    const parser = new PostalMime();
+    parsed = await parser.parse(rawBuffer);
+  } catch (err) {
+    console.error("Malformed MIME parsing error:", err);
+    const envelopeSubject = message.headers.get("subject") || "[Malformed Message]";
+
+    await env.DB.prepare(
+      `INSERT INTO messages (
+        id, account_id, sender_email, sender_name, subject, snippet,
+        body_text, body_html, raw_r2_key, has_attachments, attachments_json,
+        received_at, expires_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      messageId,
+      account.id,
+      message.from,
+      "",
+      envelopeSubject,
+      "[Malformed MIME Message]",
+      "[Unable to parse email content. Please inspect the raw source.]",
+      "",
+      rawR2Key,
+      0,
+      null,
+      receivedAt.toISOString(),
+      expiresAt.toISOString()
+    ).run();
+
+    return;
+  }
+
+  // Save attachments to R2 (Capped at 5 attachments per email)
   const attachmentsMeta: AttachmentMeta[] = [];
   if (parsed.attachments && parsed.attachments.length > 0) {
-    for (let i = 0; i < parsed.attachments.length; i++) {
-      const att = parsed.attachments[i];
+    const attachmentsToProcess = parsed.attachments.slice(0, 5);
+    for (let i = 0; i < attachmentsToProcess.length; i++) {
+      const att = attachmentsToProcess[i];
       const attId = crypto.randomUUID();
       const r2Key = `emails/${account.id}/${messageId}/attachments/${attId}`;
 
@@ -66,9 +99,6 @@ export async function email(
       });
     }
   }
-
-  const receivedAt = new Date();
-  const expiresAt = new Date(receivedAt.getTime() + 24 * 60 * 60 * 1000);
 
   const senderEmail = parsed.from?.address || message.from;
   const senderName = parsed.from?.name || "";

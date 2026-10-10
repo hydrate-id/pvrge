@@ -3,6 +3,7 @@ export interface Env {
   STORAGE: R2Bucket;
   ASSETS?: Fetcher;
   JWT_SECRET?: string;
+  ENVIRONMENT?: string;
 }
 
 export interface Domain {

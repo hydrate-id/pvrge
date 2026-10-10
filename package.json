@@ -6,7 +6,8 @@
     "backend:dev": "bun --cwd backend dev",
     "backend:deploy": "bun --cwd backend run deploy",
     "frontend:dev": "bun --cwd frontend dev",
-    "frontend:build": "bun --cwd frontend build"
+    "frontend:build": "bun --cwd frontend build",
+    "deploy": "cd frontend && bun run build && cd ../backend && wrangler deploy"
   },
   "workspaces": [
     "backend",
