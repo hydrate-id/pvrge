@@ -6,10 +6,23 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
+  "vars": {
+    "BUN_VERSION": "1.4.2"
+  },
   "observability": {
     "logs": {
-      "enabled": false,
-      "invocation_logs": true
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true
+    },
+    "issue_detection": {
+      "enabled": true
     }
   },
   "d1_databases": [
@@ -26,8 +39,8 @@
     }
   ],
   "assets": {
-    "directory": "./web/dist",
     "binding": "ASSETS",
+    "directory": "./web/dist",
     "not_found_handling": "single-page-application"
   },
   "triggers": {
