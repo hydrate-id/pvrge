@@ -94,6 +94,16 @@ function formatFullDate(dateStr) {
   }
 }
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return '0 B';
   const k = 1024;
@@ -230,7 +240,8 @@ function printEmail() {
   showActionsMenu.value = false;
   if (!selectedMessageDetail.value) return;
 
-  const bodyContent = selectedMessageDetail.value.body_html || `<pre style="white-space: pre-wrap; font-family: sans-serif; font-size: 14px; line-height: 1.5;">${selectedMessageDetail.value.body_text || ''}</pre>`;
+  const escapedText = escapeHtml(selectedMessageDetail.value.body_text || '');
+  const bodyContent = selectedMessageDetail.value.body_html || `<pre style="white-space: pre-wrap; font-family: sans-serif; font-size: 14px; line-height: 1.5;">${escapedText}</pre>`;
 
   const printFrame = document.createElement('iframe');
   printFrame.style.position = 'fixed';
@@ -344,17 +355,13 @@ async function downloadAttachment(att) {
   }
 }
 
-const iframeContent = computed(() => {
+const safeIframeContent = computed(() => {
   if (!selectedMessageDetail.value) return '';
-  if (viewMode.value === 'text') {
-    const text = selectedMessageDetail.value.body_text || '(No text content)';
-    const escaped = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; word-break: break-word; padding: 1.5rem; color: #1e293b; line-height: 1.6; font-size: 14px; } @media (prefers-color-scheme: dark) { body { color: #f1f5f9; background: #0f172a; } }</style></head><body>${escaped}</body></html>`;
+  if (selectedMessageDetail.value.body_html) {
+    return selectedMessageDetail.value.body_html;
   }
-  return selectedMessageDetail.value.body_html || selectedMessageDetail.value.body_text || '<p class="text-gray-400 p-4">No content</p>';
+  const escapedText = escapeHtml(selectedMessageDetail.value.body_text || '');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:sans-serif;font-size:14px;line-height:1.5;color:#16161a;padding:20px;margin:0;white-space:pre-wrap;word-break:break-word;}@media(prefers-color-scheme:dark){body{color:#e2e8f0;background:#0f172a;}}</style></head><body>${escapedText}</body></html>`;
 });
 
 // Adaptive Polling: 4s active tab, 30s background tab
@@ -724,9 +731,10 @@ onUnmounted(() => {
             <div class="aspect-h-8 aspect-w-16 h-full">
               <iframe
                 class="w-full min-h-[500px] border-0"
-                :srcdoc="selectedMessageDetail.body_html || selectedMessageDetail.body_text"
+                :srcdoc="safeIframeContent"
                 id="iFrameResizer1"
                 scrolling="yes"
+                sandbox="allow-popups allow-popups-to-escape-sandbox"
                 style="overflow: auto;"
               ></iframe>
             </div>
