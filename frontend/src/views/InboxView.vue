@@ -11,6 +11,8 @@ import EllipsisV from '@primeicons/vue/ellipsis-v';
 import Download from '@primeicons/vue/download';
 import Code from '@primeicons/vue/code';
 import Print from '@primeicons/vue/print';
+import { Copy, Check, Bell } from '@primeicons/vue';
+import { getMsgOtp } from '../utils/otp';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +41,52 @@ const viewMode = ref('html'); // 'html' or 'text'
 const readMessageIds = ref(new Set());
 const showDeleteMessageDialog = ref(false);
 const errorDialog = ref({ open: false, title: '', message: '' });
+
+// Copy feedback state
+const copiedKey = ref(null);
+let copyTimer = null;
+
+// Notification and Dynamic Tab Title
+const defaultTitle = ref(typeof document !== 'undefined' ? document.title : 'pvrge - Disposable Temporary Email Service');
+const notificationPermission = ref(
+  typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'denied'
+);
+const hasInitialFetch = ref(false);
+
+async function copyToClipboard(text, key) {
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    copiedKey.value = key;
+    if (copyTimer) clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => {
+      copiedKey.value = null;
+    }, 2000);
+  } catch (err) {
+    console.error('Failed to copy to clipboard:', err);
+  }
+}
+
+async function requestNotificationPermission() {
+  if (typeof window === 'undefined' || !('Notification' in window)) return;
+  try {
+    const perm = await Notification.requestPermission();
+    notificationPermission.value = perm;
+  } catch (e) {
+    console.warn('Failed to request notification permission:', e);
+  }
+}
+
+function sendNotification(title, options) {
+  if (typeof window === 'undefined' || !('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    try {
+      new Notification(title, options);
+    } catch (e) {
+      console.warn('Notification error:', e);
+    }
+  }
+}
 
 // Load read states from localStorage
 try {
@@ -131,12 +179,31 @@ async function fetchMessages(quiet = false) {
     }
     if (!res.ok) throw new Error('Failed to fetch messages');
     const data = await res.json();
-    messages.value = (data.messages || []).map((m) => ({
+    const oldIds = new Set(messages.value.map((m) => m.id));
+    const newMessages = (data.messages || []).map((m) => ({
       ...m,
       from_name: m.from_name || m.sender_name || '',
       from_address: m.from_address || m.sender_email || '',
       intro: m.intro || m.snippet || '',
     }));
+
+    if (hasInitialFetch.value) {
+      const arrived = newMessages.filter((m) => !oldIds.has(m.id));
+      if (arrived.length > 0) {
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+          document.title = `(${newMessages.length}) Inbox - pvrge`;
+        }
+        for (const msg of arrived) {
+          sendNotification(`New email from ${msg.from_name || msg.from_address || 'Unknown'}`, {
+            body: msg.subject || msg.intro || 'You received a new message',
+          });
+        }
+      }
+    } else {
+      hasInitialFetch.value = true;
+    }
+
+    messages.value = newMessages;
 
     // Calculate total size for storage indicator
     const totalBytes = messages.value.reduce((acc, m) => acc + (m.size || 0), 0);
@@ -397,6 +464,9 @@ watch(
 
 function handleVisibilityChange() {
   if (document.visibilityState === 'visible') {
+    if (typeof document !== 'undefined') {
+      document.title = defaultTitle.value;
+    }
     fetchMessages(true);
   }
   scheduleNextPoll();
@@ -413,6 +483,10 @@ watch(
     selectedMessageDetail.value = null;
     isShowingSource.value = false;
     rawSourceText.value = '';
+    hasInitialFetch.value = false;
+    if (typeof document !== 'undefined') {
+      document.title = defaultTitle.value;
+    }
     if (newId) {
       fetchMessages(false);
     } else {
@@ -423,6 +497,9 @@ watch(
 );
 
 onMounted(() => {
+  if (typeof document !== 'undefined') {
+    defaultTitle.value = document.title;
+  }
   if (session.activeAccount.value) {
     fetchMessages(false);
   }
@@ -433,6 +510,10 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (pollTimer) clearTimeout(pollTimer);
+  if (copyTimer) clearTimeout(copyTimer);
+  if (typeof document !== 'undefined') {
+    document.title = defaultTitle.value;
+  }
   document.removeEventListener('visibilitychange', handleVisibilityChange);
   window.removeEventListener('pvrge:refresh', handleExternalRefresh);
 });
@@ -465,11 +546,29 @@ onUnmounted(() => {
     <!-- ================= 1. TAMPILAN LIST (Saat tidak ada email dipilih) ================= -->
     <div v-if="!selectedMessageId">
       <!-- Header -->
-      <div class="mt-2 md:flex md:items-center md:justify-between">
+      <div class="mt-2 flex items-center justify-between">
         <div class="min-w-0 flex-1">
           <h2 class="text-2xl/7 font-bold text-gray-900 sm:truncate dark:text-gray-300">
             Inbox
           </h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <span
+            v-if="notificationPermission === 'granted'"
+            class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-500/30"
+          >
+            <Bell class="size-3.5" />
+            Notifications Active
+          </span>
+          <button
+            v-else
+            type="button"
+            @click="requestNotificationPermission"
+            class="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-gray-700/60 transition cursor-pointer"
+          >
+            <Bell class="size-3.5 text-gray-500 dark:text-gray-400" />
+            Enable Notifications
+          </button>
         </div>
       </div>
 
@@ -517,7 +616,25 @@ onUnmounted(() => {
                     </div>
                   </div>
                 </div>
-                <ChevronRight class="size-4 text-gray-400" />
+
+                <!-- OTP Quick Action Badge Button -->
+                <button
+                  v-if="getMsgOtp(msg)"
+                  type="button"
+                  @click.stop.prevent="copyToClipboard(getMsgOtp(msg), 'otp-' + msg.id)"
+                  class="mr-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold shadow-xs transition border shrink-0 cursor-pointer"
+                  :class="copiedKey === 'otp-' + msg.id
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700'
+                    : 'bg-lime-50 text-lime-800 border-lime-300 hover:bg-lime-100 dark:bg-lime-950/40 dark:text-lime-300 dark:border-lime-700/50 dark:hover:bg-lime-900/50'"
+                  title="Copy OTP code"
+                >
+                  <Check v-if="copiedKey === 'otp-' + msg.id" class="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <Copy v-else class="size-3.5 text-lime-700 dark:text-lime-400" />
+                  <span class="font-mono tracking-wider">{{ getMsgOtp(msg) }}</span>
+                  <span v-if="copiedKey === 'otp-' + msg.id" class="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 ml-0.5">Copied</span>
+                </button>
+
+                <ChevronRight class="size-4 text-gray-400 shrink-0" />
               </div>
             </a>
           </li>
@@ -556,7 +673,7 @@ onUnmounted(() => {
             <button
               type="button"
               @click="showActionsMenu = !showActionsMenu"
-              class="rounded-md font-medium inline-flex items-center text-sm ring-1 ring-inset ring-gray-200 dark:ring-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 p-1.5 transition"
+              class="rounded-md font-medium inline-flex items-center text-sm ring-1 ring-inset ring-gray-200 dark:ring-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 p-1.5 transition cursor-pointer"
               title="More actions"
             >
               <EllipsisV class="size-5 shrink-0" />
@@ -578,7 +695,7 @@ onUnmounted(() => {
               <button
                 type="button"
                 @click="downloadEmail"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Download class="size-4 shrink-0" />
                 <span>Download</span>
@@ -588,7 +705,7 @@ onUnmounted(() => {
               <button
                 type="button"
                 @click="toggleSource"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Code class="size-4 shrink-0" />
                 <span>View message</span>
@@ -598,7 +715,7 @@ onUnmounted(() => {
               <button
                 type="button"
                 @click="printEmail"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Print class="size-4 shrink-0" />
                 <span>Print</span>
@@ -612,7 +729,7 @@ onUnmounted(() => {
                 type="button"
                 @click="() => { showActionsMenu = false; deleteSelectedMessage(); }"
                 :disabled="isDeleting"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition disabled:opacity-50"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition disabled:opacity-50 cursor-pointer"
               >
                 <Trash class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
                 <span>Delete</span>
@@ -639,17 +756,27 @@ onUnmounted(() => {
         </a>
 
         <div class="mt-2 md:flex md:items-center md:justify-between">
-          <div class="min-w-0 flex-1">
+          <div class="min-w-0 flex-1 flex items-center gap-2">
             <h2 class="text-2xl/7 font-bold text-gray-900 sm:truncate dark:text-gray-300">
               {{ selectedMessageDetail.subject || '(No Subject)' }}
             </h2>
+            <button
+              v-if="selectedMessageDetail.subject"
+              type="button"
+              @click="copyToClipboard(selectedMessageDetail.subject, 'detail-subject')"
+              class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300 transition cursor-pointer shrink-0"
+              title="Copy subject"
+            >
+              <Check v-if="copiedKey === 'detail-subject'" class="size-4 text-emerald-500" />
+              <Copy v-else class="size-4" />
+            </button>
           </div>
           <div class="relative mt-4 flex shrink-0 md:mt-0 md:ml-4">
             <!-- Trigger Dropdown -->
             <button
               type="button"
               @click="showActionsMenu = !showActionsMenu"
-              class="rounded-md font-medium inline-flex items-center text-sm ring-1 ring-inset ring-gray-200 dark:ring-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 p-1.5 transition"
+              class="rounded-md font-medium inline-flex items-center text-sm ring-1 ring-inset ring-gray-200 dark:ring-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 p-1.5 transition cursor-pointer"
               title="More actions"
             >
               <EllipsisV class="size-5 shrink-0" />
@@ -671,7 +798,7 @@ onUnmounted(() => {
               <button
                 type="button"
                 @click="downloadEmail"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Download class="size-4 shrink-0" />
                 <span>Download</span>
@@ -681,7 +808,7 @@ onUnmounted(() => {
               <button
                 type="button"
                 @click="toggleSource"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Code class="size-4 shrink-0" />
                 <span>Source</span>
@@ -691,7 +818,7 @@ onUnmounted(() => {
               <button
                 type="button"
                 @click="printEmail"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Print class="size-4 shrink-0" />
                 <span>Print</span>
@@ -705,7 +832,7 @@ onUnmounted(() => {
                 type="button"
                 @click="() => { showActionsMenu = false; deleteSelectedMessage(); }"
                 :disabled="isDeleting"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition disabled:opacity-50"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition disabled:opacity-50 cursor-pointer"
               >
                 <Trash class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
                 <span>Delete</span>
@@ -726,11 +853,21 @@ onUnmounted(() => {
                   </span>
                 </div>
                 <div class="ml-4">
-                  <div class="text-lg/6 font-medium text-emerald-600 dark:text-emerald-400">
-                    {{ selectedMessageDetail.sender_name || selectedMessageDetail.sender_email }}
-                    <span class="text-sm/5 font-normal text-gray-700 dark:text-gray-400 ml-1">
+                  <div class="flex flex-wrap items-center gap-1.5 text-lg/6 font-medium text-emerald-600 dark:text-emerald-400">
+                    <span>{{ selectedMessageDetail.sender_name || selectedMessageDetail.sender_email }}</span>
+                    <span v-if="selectedMessageDetail.sender_name && selectedMessageDetail.sender_email" class="text-sm/5 font-normal text-gray-700 dark:text-gray-400">
                       {{ selectedMessageDetail.sender_email }}
                     </span>
+                    <button
+                      v-if="selectedMessageDetail.sender_email"
+                      type="button"
+                      @click="copyToClipboard(selectedMessageDetail.sender_email, 'detail-sender')"
+                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300 transition cursor-pointer"
+                      title="Copy sender email"
+                    >
+                      <Check v-if="copiedKey === 'detail-sender'" class="size-3.5 text-emerald-500" />
+                      <Copy v-else class="size-3.5" />
+                    </button>
                     <span
                       v-if="selectedMessageDetail.auth_status === 'pass'"
                       class="ml-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-500/30"
@@ -756,6 +893,35 @@ onUnmounted(() => {
                 {{ formatRelativeTime(selectedMessageDetail.created_at) }}
               </time>
             </div>
+          </div>
+
+          <!-- OTP Banner di atas body email -->
+          <div
+            v-if="getMsgOtp(selectedMessageDetail)"
+            class="mx-4 sm:mx-6 mt-6 flex items-center justify-between rounded-lg border border-lime-300 bg-lime-50/80 p-3 sm:p-4 dark:border-lime-700/50 dark:bg-lime-950/30"
+          >
+            <div class="flex items-center gap-3">
+              <div class="flex size-9 items-center justify-center rounded-md bg-lime-200 dark:bg-lime-800/60 text-lime-800 dark:text-lime-200 font-mono font-bold text-xs uppercase">
+                OTP
+              </div>
+              <div>
+                <div class="text-xs font-medium uppercase tracking-wider text-lime-800 dark:text-lime-300">
+                  Verification Code Detected
+                </div>
+                <div class="font-mono text-xl font-bold tracking-widest text-gray-900 dark:text-white">
+                  {{ getMsgOtp(selectedMessageDetail) }}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              @click="copyToClipboard(getMsgOtp(selectedMessageDetail), 'detail-otp')"
+              class="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700 dark:hover:bg-gray-700/60 transition cursor-pointer"
+            >
+              <Check v-if="copiedKey === 'detail-otp'" class="size-3.5 text-emerald-600 dark:text-emerald-400" />
+              <Copy v-else class="size-3.5 text-gray-500 dark:text-gray-400" />
+              <span>{{ copiedKey === 'detail-otp' ? 'Copied!' : 'Copy Code' }}</span>
+            </button>
           </div>
 
           <div class="px-4 py-5 sm:px-6">
