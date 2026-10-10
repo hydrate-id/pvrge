@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@lucide/vue": "^1.54.0",
     "@primeicons/vue": "^8.0.2",
     "@vueuse/core": "^15.0.0",
     "class-variance-authority": "^0.7.1",

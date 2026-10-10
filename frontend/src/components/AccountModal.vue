@@ -1,6 +1,13 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useSession } from '../composables/useSession';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import UserPlus from '@primeicons/vue/user-plus';
 import SignIn from '@primeicons/vue/sign-in';
 import Times from '@primeicons/vue/times';
@@ -65,7 +72,7 @@ async function handleCreate() {
   try {
     const payload = {};
     if (username.value.trim()) payload.username = username.value.trim().toLowerCase();
-    if (selectedDomain.value) payload.domain = selectedDomain.value;
+    if (selectedDomain.value && selectedDomain.value !== 'default') payload.domain = selectedDomain.value;
     if (password.value) payload.password = password.value;
 
     await session.createAccount(payload);
@@ -174,13 +181,21 @@ async function handleLogin() {
           <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
             Domain
           </label>
-          <select
-            v-model="selectedDomain"
-            class="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-lime-500 font-mono"
-          >
-            <option v-for="d in domains" :key="d.id" :value="d.id">@{{ d.id }}</option>
-            <option v-if="domains.length === 0" value="">Default (@pvrge.com)</option>
-          </select>
+          <Select v-model="selectedDomain">
+            <SelectTrigger
+              class="w-full h-10 px-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-lime-500"
+            >
+              <SelectValue placeholder="Select domain" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="d in domains" :key="d.id" :value="d.id">
+                @{{ d.id }}
+              </SelectItem>
+              <SelectItem v-if="domains.length === 0" value="default">
+                Default (@pvrge.com)
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div>

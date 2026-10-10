@@ -11,6 +11,16 @@ import EllipsisV from '@primeicons/vue/ellipsis-v';
 import Download from '@primeicons/vue/download';
 import Code from '@primeicons/vue/code';
 import Print from '@primeicons/vue/print';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const session = useSession();
 const { activeAccount } = session;
@@ -27,6 +37,8 @@ const isShowingSource = ref(false);
 const rawSourceText = ref('');
 const viewMode = ref('html'); // 'html' or 'text'
 const readMessageIds = ref(new Set());
+const showDeleteMessageDialog = ref(false);
+const errorDialog = ref({ open: false, title: '', message: '' });
 
 // Load read states from localStorage
 try {
@@ -262,12 +274,15 @@ function printEmail() {
   }, 300);
 }
 
-async function deleteSelectedMessage() {
+function deleteSelectedMessage() {
+  showActionsMenu.value = false;
+  showDeleteMessageDialog.value = true;
+}
+
+async function confirmDeleteMessage() {
   const token = session.activeAccount.value?.token;
   const id = selectedMessageId.value;
   if (!token || !id || isDeleting.value) return;
-
-  if (!confirm('Are you sure you want to delete this message?')) return;
 
   isDeleting.value = true;
   try {
@@ -284,9 +299,14 @@ async function deleteSelectedMessage() {
     session.setStorageBytes(totalBytes);
     deselectMessage();
   } catch (err) {
-    alert('Failed to delete message: ' + err.message);
+    errorDialog.value = {
+      open: true,
+      title: 'Error',
+      message: 'Failed to delete message: ' + err.message,
+    };
   } finally {
     isDeleting.value = false;
+    showDeleteMessageDialog.value = false;
   }
 }
 
@@ -314,7 +334,11 @@ async function downloadAttachment(att) {
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
   } catch (err) {
-    alert('Failed to download attachment: ' + err.message);
+    errorDialog.value = {
+      open: true,
+      title: 'Error',
+      message: 'Failed to download attachment: ' + err.message,
+    };
   } finally {
     isDownloadingAttachment.value[att.id] = false;
   }
@@ -710,5 +734,39 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- Alert Dialogs -->
+    <AlertDialog :open="showDeleteMessageDialog" @update:open="showDeleteMessageDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Message</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete this message? This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction @click="confirmDeleteMessage" class="bg-rose-600 hover:bg-rose-700 text-white">
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <AlertDialog :open="errorDialog.open" @update:open="errorDialog.open = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{{ errorDialog.title }}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {{ errorDialog.message }}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction @click="errorDialog.open = false">
+            OK
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>

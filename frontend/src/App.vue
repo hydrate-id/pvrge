@@ -4,6 +4,16 @@ import { useRoute, useRouter } from 'vue-router';
 import { useSession } from './composables/useSession';
 import { useTheme } from './composables/useTheme';
 import AccountModal from './components/AccountModal.vue';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import SignOut from '@primeicons/vue/sign-out';
 import User from '@primeicons/vue/user';
 import SignIn from '@primeicons/vue/sign-in';
@@ -126,12 +136,16 @@ function openLoginModal() {
   showAccountModal.value = true;
 }
 
-async function handleDeleteCurrentAccount() {
+const showDeleteAccountDialog = ref(false);
+
+function handleDeleteCurrentAccount() {
   isDropdownOpen.value = false;
-  if (confirm('Are you sure you want to delete this account and all its messages?')) {
-    await session.deleteAccount();
-    handleRefresh();
-  }
+  showDeleteAccountDialog.value = true;
+}
+
+async function confirmDeleteCurrentAccount() {
+  await session.deleteAccount();
+  handleRefresh();
 }
 const handleDeleteAccount = handleDeleteCurrentAccount;
 
@@ -537,5 +551,22 @@ onUnmounted(() => {
       @close="showAccountModal = false"
       @account-ready="handleAccountReady"
     />
+
+    <AlertDialog :open="showDeleteAccountDialog" @update:open="showDeleteAccountDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Account</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete this account and all its messages? This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction @click="confirmDeleteCurrentAccount" class="bg-rose-600 hover:bg-rose-700 text-white">
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>

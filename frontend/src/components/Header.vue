@@ -56,11 +56,9 @@ function openLoginModal() {
 }
 
 async function handleDeleteAccount() {
-  if (confirm('Are you sure you want to delete this inbox and all its messages? This action cannot be undone.')) {
-    isDropdownOpen.value = false;
-    await session.deleteAccount();
-    emit('refresh');
-  }
+  isDropdownOpen.value = false;
+  await session.deleteAccount();
+  emit('refresh');
 }
 
 function handleClickOutside(e) {
