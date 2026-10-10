@@ -481,12 +481,115 @@ async function downloadAttachment(att) {
 
 const safeIframeContent = computed(() => {
   if (!selectedMessageDetail.value) return '';
+
+  const injectedBaseAndStyles = `
+    <base target="_blank">
+    <style>
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow-y: hidden !important;
+        height: auto !important;
+        min-height: 0 !important;
+      }
+      #email-content-wrapper {
+        width: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
+        height: auto !important;
+        min-height: 0 !important;
+      }
+    </style>
+  `;
+
   if (selectedMessageDetail.value.body_html) {
-    return selectedMessageDetail.value.body_html;
+    let html = selectedMessageDetail.value.body_html;
+    if (/<head[^>]*>/i.test(html)) {
+      html = html.replace(/<head[^>]*>/i, (match) => match + injectedBaseAndStyles);
+    } else if (/<html[^>]*>/i.test(html)) {
+      html = html.replace(/<html[^>]*>/i, (match) => match + '<head>' + injectedBaseAndStyles + '</head>');
+    } else {
+      html = '<head>' + injectedBaseAndStyles + '</head>' + html;
+    }
+
+    if (/<body[^>]*>/i.test(html)) {
+      html = html
+        .replace(/<body([^>]*)>/i, '<body$1><div id="email-content-wrapper">')
+        .replace(/<\/body>/i, '</div></body>');
+    } else {
+      html = `<!DOCTYPE html><html><head>${injectedBaseAndStyles}</head><body><div id="email-content-wrapper">${html}</div></body></html>`;
+    }
+
+    return html;
   }
+
   const escapedText = escapeHtml(selectedMessageDetail.value.body_text || '');
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:sans-serif;font-size:14px;line-height:1.5;color:#16161a;padding:20px;margin:0;white-space:pre-wrap;word-break:break-word;}@media(prefers-color-scheme:dark){body{color:#e2e8f0;background:#0f172a;}}</style></head><body>${escapedText}</body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">${injectedBaseAndStyles}<style>#email-content-wrapper{font-family:sans-serif;font-size:14px;line-height:1.5;color:#16161a;padding:20px;white-space:pre-wrap;word-break:break-word;}@media(prefers-color-scheme:dark){#email-content-wrapper{color:#e2e8f0;background:#0f172a;}}</style></head><body><div id="email-content-wrapper">${escapedText}</div></body></html>`;
 });
+
+const emailIframeRef = ref(null);
+let iframeResizeObserver = null;
+
+function updateIframeHeight() {
+  const iframe = emailIframeRef.value;
+  if (!iframe) return;
+
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+
+    const wrapper = doc.getElementById('email-content-wrapper');
+    let targetHeight = 0;
+
+    if (wrapper) {
+      targetHeight = Math.ceil(wrapper.getBoundingClientRect().height || wrapper.scrollHeight);
+    } else if (doc.body) {
+      targetHeight = Math.ceil(doc.body.scrollHeight || doc.documentElement.scrollHeight);
+    }
+
+    if (targetHeight > 0) {
+      iframe.style.height = `${targetHeight}px`;
+    }
+  } catch (err) {
+    console.error('Failed to adjust email iframe height:', err);
+  }
+}
+
+function handleIframeLoad() {
+  const iframe = emailIframeRef.value;
+  if (!iframe) return;
+
+  if (iframeResizeObserver) {
+    iframeResizeObserver.disconnect();
+    iframeResizeObserver = null;
+  }
+
+  updateIframeHeight();
+
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+
+    const target = doc.getElementById('email-content-wrapper') || doc.body;
+
+    if (window.ResizeObserver && target) {
+      iframeResizeObserver = new ResizeObserver(() => {
+        updateIframeHeight();
+      });
+      iframeResizeObserver.observe(target);
+    }
+
+    const images = doc.querySelectorAll('img');
+    images.forEach((img) => {
+      if (!img.complete) {
+        img.addEventListener('load', updateIframeHeight, { once: true });
+        img.addEventListener('error', updateIframeHeight, { once: true });
+      }
+    });
+  } catch (err) {
+    console.error('Failed to setup iframe observer:', err);
+  }
+}
 
 // Adaptive Polling: 4s active tab, 30s background tab
 let pollTimer = null;
@@ -559,6 +662,10 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  if (iframeResizeObserver) {
+    iframeResizeObserver.disconnect();
+    iframeResizeObserver = null;
+  }
   if (pollTimer) clearTimeout(pollTimer);
   if (copyTimer) clearTimeout(copyTimer);
   if (toastTimer) clearTimeout(toastTimer);
@@ -1005,16 +1112,15 @@ onUnmounted(() => {
           </div>
 
           <div class="px-4 py-5 sm:px-6">
-            <div class="aspect-h-8 aspect-w-16 h-full">
-              <iframe
-                class="w-full min-h-[500px] border-0"
-                :srcdoc="safeIframeContent"
-                id="iFrameResizer1"
-                scrolling="yes"
-                sandbox="allow-popups allow-popups-to-escape-sandbox"
-                style="overflow: auto;"
-              ></iframe>
-            </div>
+            <iframe
+              ref="emailIframeRef"
+              class="w-full border-0 block"
+              :srcdoc="safeIframeContent"
+              sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+              scrolling="no"
+              style="overflow: hidden; height: 150px;"
+              @load="handleIframeLoad"
+            ></iframe>
           </div>
         </div>
       </div>
