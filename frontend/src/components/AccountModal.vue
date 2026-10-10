@@ -97,6 +97,12 @@ async function handleLogin() {
     return;
   }
 
+  const cleanEmail = loginEmail.value.trim().toLowerCase();
+  if (cleanEmail === 'support@pvrge.com') {
+    errorMsg.value = 'On-duty account must log in via /onduty/login.';
+    return;
+  }
+
   isSubmitting.value = true;
   errorMsg.value = '';
   try {
