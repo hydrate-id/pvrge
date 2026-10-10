@@ -2,15 +2,18 @@
   "name": "pvrge-monorepo",
   "private": true,
   "type": "module",
-  "scripts": {
-    "backend:dev": "bun --cwd backend dev",
-    "backend:deploy": "bun --cwd backend run deploy",
-    "frontend:dev": "bun --cwd frontend dev",
-    "frontend:build": "bun --cwd frontend build",
-    "deploy": "cd frontend && bun run build && cd ../backend && wrangler deploy"
-  },
   "workspaces": [
     "backend",
     "frontend"
-  ]
+  ],
+  "scripts": {
+    "dev": "bun --cwd frontend dev",
+    "deploy": "cd frontend && bun run build && cd ../backend && wrangler deploy",
+    "db:migrate:remote": "bun --cwd backend run db:migrate:remote",
+    "db:migrate:local": "bun --cwd backend run db:migrate:local",
+    "frontend:build": "bun --cwd frontend build",
+    "frontend:dev": "bun --cwd frontend dev",
+    "backend:dev": "bun --cwd backend dev",
+    "backend:deploy": "bun --cwd backend run deploy"
+  }
 }
