@@ -8,6 +8,42 @@ const isLoading = ref(false);
 const error = ref(null);
 const storageBytes = ref(0);
 
+const rateLimitState = ref({
+  isLimited: false,
+  retryAfter: 0,
+  message: '',
+});
+
+let rateLimitTimer = null;
+function triggerRateLimit(retrySeconds = 30, message = '') {
+  const seconds = Math.max(1, parseInt(retrySeconds, 10) || 30);
+  rateLimitState.value = {
+    isLimited: true,
+    retryAfter: seconds,
+    message: message || `Too many requests. Please wait ${seconds}s.`,
+  };
+  if (rateLimitTimer) clearInterval(rateLimitTimer);
+  rateLimitTimer = setInterval(() => {
+    if (rateLimitState.value.retryAfter > 1) {
+      rateLimitState.value.retryAfter -= 1;
+    } else {
+      clearInterval(rateLimitTimer);
+      rateLimitTimer = null;
+      rateLimitState.value = { isLimited: false, retryAfter: 0, message: '' };
+    }
+  }, 1000);
+}
+
+function handleResponseStatus(res, fallbackMessage = 'Too many requests') {
+  if (res?.status === 429) {
+    const retryHeader = res.headers?.get ? res.headers.get('Retry-After') : null;
+    const seconds = retryHeader ? parseInt(retryHeader, 10) : 30;
+    triggerRateLimit(seconds, fallbackMessage);
+    return true;
+  }
+  return false;
+}
+
 function loadSessionsFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -63,6 +99,10 @@ export function useSession() {
         body: JSON.stringify(payload),
       });
 
+      if (handleResponseStatus(res, 'Account creation rate limited. Please try again later.')) {
+        throw new Error('Rate limit reached. Please wait before creating an account.');
+      }
+
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Failed to create account');
@@ -105,6 +145,10 @@ export function useSession() {
         },
         body: JSON.stringify({ email, password }),
       });
+
+      if (handleResponseStatus(res, 'Login rate limited. Please try again later.')) {
+        throw new Error('Rate limit reached. Please wait before logging in.');
+      }
 
       const data = await res.json();
       if (!res.ok) {
@@ -151,12 +195,13 @@ export function useSession() {
     const targetAccount = accounts.value.find((a) => a.id === targetId);
     if (targetAccount?.token) {
       try {
-        await fetch('/api/accounts/me', {
+        const res = await fetch('/api/accounts/me', {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${targetAccount.token}`,
           },
         });
+        handleResponseStatus(res);
       } catch (e) {
         console.warn('Backend delete request failed:', e);
       }
@@ -192,6 +237,7 @@ export function useSession() {
   async function fetchDomains() {
     try {
       const res = await fetch('/api/domains');
+      if (handleResponseStatus(res)) return [];
       const data = await res.json();
       return data.domains || [];
     } catch (e) {
@@ -207,6 +253,9 @@ export function useSession() {
     storageBytes,
     isLoading,
     error,
+    rateLimitState,
+    triggerRateLimit,
+    handleResponseStatus,
     setStorageBytes,
     initSession,
     createAccount,
@@ -216,3 +265,5 @@ export function useSession() {
     fetchDomains,
   };
 }
+
+export { rateLimitState, triggerRateLimit, handleResponseStatus };

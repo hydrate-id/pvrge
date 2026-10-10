@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 const session = useSession();
-const { activeAccount } = session;
+const { activeAccount, rateLimitState, handleResponseStatus } = session;
 
 const messages = ref([]);
 const selectedMessageId = ref(null);
@@ -113,6 +113,8 @@ function formatBytes(bytes) {
 }
 
 async function fetchMessages(quiet = false) {
+  if (rateLimitState.value.isLimited) return;
+
   const token = session.activeAccount.value?.token;
   if (!token) return;
 
@@ -123,6 +125,10 @@ async function fetchMessages(quiet = false) {
         Authorization: `Bearer ${token}`,
       },
     });
+    if (res.status === 429) {
+      handleResponseStatus(res, 'Polling rate limit reached. Auto-refresh paused.');
+      return;
+    }
     if (!res.ok) throw new Error('Failed to fetch messages');
     const data = await res.json();
     messages.value = (data.messages || []).map((m) => ({
@@ -369,7 +375,9 @@ let pollTimer = null;
 
 function scheduleNextPoll() {
   if (pollTimer) clearTimeout(pollTimer);
-  const interval = document.visibilityState === 'visible' ? 4000 : 30000;
+  const interval = rateLimitState.value.isLimited
+    ? (rateLimitState.value.retryAfter + 1) * 1000
+    : (document.visibilityState === 'visible' ? 4000 : 30000);
   pollTimer = setTimeout(async () => {
     if (session.activeAccount.value) {
       await fetchMessages(true);
@@ -377,6 +385,15 @@ function scheduleNextPoll() {
     scheduleNextPoll();
   }, interval);
 }
+
+watch(
+  () => rateLimitState.value.isLimited,
+  (limited) => {
+    if (!limited && session.activeAccount.value) {
+      scheduleNextPoll();
+    }
+  }
+);
 
 function handleVisibilityChange() {
   if (document.visibilityState === 'visible') {
@@ -422,6 +439,12 @@ onUnmounted(() => {
 </script>
 
 <template>
+  <div v-if="rateLimitState.isLimited" class="mb-4 flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 shadow-sm dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-200">
+    <div class="flex items-center gap-2.5 text-sm">
+      <span>{{ rateLimitState.message || 'Rate limit reached.' }} Auto-refresh resumes in <strong class="font-semibold tabular-nums">{{ rateLimitState.retryAfter }}s</strong>.</span>
+    </div>
+  </div>
+
   <!-- Empty State (Saat tidak ada email dipilih dan inbox kosong) -->
   <div
     v-if="!selectedMessageId && messages.length === 0"
@@ -708,6 +731,14 @@ onUnmounted(() => {
                     <span class="text-sm/5 font-normal text-gray-700 dark:text-gray-400 ml-1">
                       {{ selectedMessageDetail.sender_email }}
                     </span>
+                    <span
+                      v-if="selectedMessageDetail.auth_status === 'pass'"
+                      class="ml-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-500/30"
+                    >Verified</span>
+                    <span
+                      v-else
+                      class="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-500/30"
+                    >Unverified</span>
                   </div>
                   <div class="flex items-center text-sm/5 text-gray-500 dark:text-gray-400">
                     <svg class="mr-1.5 size-5 shrink-0 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
