@@ -27,6 +27,8 @@ export interface AttachmentMeta {
   r2Key: string;
 }
 
+export type AuthStatus = "pass" | "fail" | "none";
+
 export interface Message {
   id: string;
   account_id: string;
@@ -39,6 +41,7 @@ export interface Message {
   raw_r2_key: string | null;
   has_attachments: number;
   attachments_json: string | null;
+  auth_status: AuthStatus;
   received_at: string;
   expires_at: string;
 }

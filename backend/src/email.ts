@@ -1,5 +1,31 @@
 import PostalMime from "postal-mime";
-import type { AttachmentMeta, Env } from "./types";
+import type { AttachmentMeta, AuthStatus, Env } from "./types";
+
+export function extractAuthStatus(headers: Headers): AuthStatus {
+  const authHeader = (
+    headers.get("authentication-results") ||
+    headers.get("arc-authentication-results") ||
+    ""
+  ).toLowerCase();
+
+  if (!authHeader) return "none";
+
+  const spfMatch = authHeader.match(/\bspf=(pass|fail|softfail|none)\b/);
+  const dkimMatch = authHeader.match(/\bdkim=(pass|fail|none)\b/);
+
+  const spf = spfMatch ? spfMatch[1] : null;
+  const dkim = dkimMatch ? dkimMatch[1] : null;
+
+  if (spf === "fail" || dkim === "fail") {
+    return "fail";
+  }
+
+  if (spf === "pass" || dkim === "pass") {
+    return "pass";
+  }
+
+  return "none";
+}
 
 export async function email(
   message: ForwardableEmailMessage,
@@ -44,13 +70,14 @@ export async function email(
   } catch (err) {
     console.error("Malformed MIME parsing error:", err);
     const envelopeSubject = message.headers.get("subject") || "[Malformed Message]";
+    const authStatus = extractAuthStatus(message.headers);
 
     await env.DB.prepare(
       `INSERT INTO messages (
         id, account_id, sender_email, sender_name, subject, snippet,
         body_text, body_html, raw_r2_key, has_attachments, attachments_json,
-        received_at, expires_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        auth_status, received_at, expires_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       messageId,
       account.id,
@@ -63,6 +90,7 @@ export async function email(
       rawR2Key,
       0,
       null,
+      authStatus,
       receivedAt.toISOString(),
       expiresAt.toISOString()
     ).run();
@@ -106,14 +134,15 @@ export async function email(
   const bodyText = parsed.text || "";
   const bodyHtml = parsed.html || "";
   const snippet = (bodyText.replace(/\s+/g, " ").trim() || subject).slice(0, 150);
+  const authStatus = extractAuthStatus(message.headers);
 
   // Insert into D1 messages
   await env.DB.prepare(
     `INSERT INTO messages (
       id, account_id, sender_email, sender_name, subject, snippet,
       body_text, body_html, raw_r2_key, has_attachments, attachments_json,
-      received_at, expires_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      auth_status, received_at, expires_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     messageId,
     account.id,
@@ -126,6 +155,7 @@ export async function email(
     rawR2Key,
     attachmentsMeta.length > 0 ? 1 : 0,
     attachmentsMeta.length > 0 ? JSON.stringify(attachmentsMeta) : null,
+    authStatus,
     receivedAt.toISOString(),
     expiresAt.toISOString()
   ).run();

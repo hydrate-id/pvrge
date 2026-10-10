@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS messages (
     raw_r2_key TEXT,
     has_attachments INTEGER DEFAULT 0,
     attachments_json TEXT,
+    auth_status TEXT DEFAULT 'none',
     received_at TEXT,
     expires_at TEXT
 );

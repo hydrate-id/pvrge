@@ -274,10 +274,15 @@ export const app = new Elysia({ aot: false })
     }
 
     const result = await env.DB.prepare(
-      "SELECT id, sender_email, sender_name, subject, snippet, has_attachments, received_at, expires_at FROM messages WHERE account_id = ? AND expires_at > datetime('now') ORDER BY received_at DESC"
-    ).bind(user.id).all();
+      "SELECT id, sender_email, sender_name, subject, snippet, has_attachments, COALESCE(auth_status, 'none') as auth_status, received_at, expires_at FROM messages WHERE account_id = ? AND expires_at > datetime('now') ORDER BY received_at DESC"
+    ).bind(user.id).all<Message>();
 
-    return { messages: result.results || [] };
+    const messages = (result.results || []).map((msg) => ({
+      ...msg,
+      auth_status: msg.auth_status || "none"
+    }));
+
+    return { messages };
   })
   .get("/api/messages/:id", async ({ params, request, env, set }) => {
     const user = await getAuthUser(request.headers, env);
@@ -305,6 +310,7 @@ export const app = new Elysia({ aot: false })
     return {
       message: {
         ...message,
+        auth_status: message.auth_status || "none",
         attachments
       }
     };
