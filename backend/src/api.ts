@@ -319,6 +319,60 @@ export const app = new Elysia({ aot: false })
     const users = result.results || [];
     return { users, total: users.length };
   })
+  .delete("/api/admin/users/:id", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request.headers, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (user.email !== "support@pvrge.com") {
+      set.status = 403;
+      return { error: "Forbidden: Admin access required" };
+    }
+
+    const target = await env.DB.prepare(
+      "SELECT id, email FROM accounts WHERE id = ?"
+    ).bind(params.id).first<{ id: string; email: string }>();
+
+    if (!target) {
+      set.status = 404;
+      return { error: "User not found" };
+    }
+
+    if (target.email === "support@pvrge.com") {
+      set.status = 400;
+      return { error: "Cannot delete admin account" };
+    }
+
+    const messages = await env.DB.prepare(
+      "SELECT id, raw_r2_key, attachments_json FROM messages WHERE account_id = ?"
+    ).bind(target.id).all<{ id: string; raw_r2_key: string | null; attachments_json: string | null }>();
+
+    const r2Keys: string[] = [];
+    if (messages.results) {
+      for (const msg of messages.results) {
+        if (msg.raw_r2_key) r2Keys.push(msg.raw_r2_key);
+        if (msg.attachments_json) {
+          try {
+            const atts = JSON.parse(msg.attachments_json) as { r2Key?: string }[];
+            for (const att of atts) {
+              if (att.r2Key) r2Keys.push(att.r2Key);
+            }
+          } catch {}
+        }
+      }
+    }
+
+    if (r2Keys.length > 0) {
+      await env.STORAGE.delete(r2Keys);
+    }
+
+    await env.DB.prepare("DELETE FROM messages WHERE account_id = ?").bind(target.id).run();
+    await env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(target.id).run();
+
+    return { success: true };
+  })
   .get("/api/messages/:id", async ({ params, request, env, set }) => {
     const user = await getAuthUser(request.headers, env);
     if (!user) {

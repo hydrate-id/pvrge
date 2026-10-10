@@ -10,6 +10,17 @@ import Check from '@primeicons/vue/check';
 import Spinner from '@primeicons/vue/spinner';
 import Envelope from '@primeicons/vue/envelope';
 import Times from '@primeicons/vue/times';
+import Trash from '@primeicons/vue/trash';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
 
 const router = useRouter();
 const session = useSession();
@@ -21,12 +32,52 @@ const isLoading = ref(false);
 const error = ref(null);
 const searchQuery = ref('');
 const copiedId = ref(null);
+const userToDelete = ref(null);
+const isDeleting = ref(false);
 
 const filteredUsers = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   if (!q) return users.value;
   return users.value.filter((u) => u.email.toLowerCase().includes(q));
 });
+
+function openDeleteDialog(user) {
+  if (user.email === 'support@pvrge.com') return;
+  userToDelete.value = user;
+}
+
+async function confirmDeleteUser() {
+  if (!userToDelete.value) return;
+
+  const token = dutySession?.value?.token || activeAccount.value?.token;
+  if (!token) {
+    error.value = 'Not authenticated. Please log in as an administrator.';
+    return;
+  }
+
+  isDeleting.value = true;
+  try {
+    const res = await fetch(`/api/admin/users/${userToDelete.value.id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Failed to delete user (HTTP ${res.status})`);
+    }
+
+    users.value = users.value.filter((u) => u.id !== userToDelete.value.id);
+    totalCount.value = Math.max(0, totalCount.value - 1);
+    userToDelete.value = null;
+  } catch (err) {
+    error.value = err.message || 'Failed to delete user.';
+  } finally {
+    isDeleting.value = false;
+  }
+}
 
 function formatDate(dateStr) {
   if (!dateStr) return '-';
@@ -180,12 +231,13 @@ onMounted(() => {
               <th scope="col" class="hidden md:table-cell py-2.5 px-4">Account ID</th>
               <th scope="col" class="py-2.5 px-4 text-center">Messages</th>
               <th scope="col" class="py-2.5 px-4 text-right">Created At</th>
+              <th scope="col" class="py-2.5 px-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200 dark:divide-gray-700/60 font-normal">
             <!-- Loading State -->
             <tr v-if="isLoading && users.length === 0">
-              <td colspan="4" class="py-12 text-center">
+              <td colspan="5" class="py-12 text-center">
                 <div class="flex flex-col items-center justify-center gap-2">
                   <Spinner class="size-5 animate-spin text-emerald-600 dark:text-emerald-400" />
                   <span class="text-xs text-gray-500 dark:text-gray-400">Loading registered users...</span>
@@ -195,7 +247,7 @@ onMounted(() => {
 
             <!-- Empty State -->
             <tr v-else-if="filteredUsers.length === 0">
-              <td colspan="4" class="py-12 text-center text-xs text-gray-500 dark:text-gray-400">
+              <td colspan="5" class="py-12 text-center text-xs text-gray-500 dark:text-gray-400">
                 <span v-if="searchQuery">No matching users found for "{{ searchQuery }}"</span>
                 <span v-else>No registered users found</span>
               </td>
@@ -284,6 +336,20 @@ onMounted(() => {
               <td class="py-2.5 px-4 text-right whitespace-nowrap text-xs text-gray-500 dark:text-gray-400 font-mono">
                 {{ formatDate(user.created_at) }}
               </td>
+
+              <!-- Kolom Actions -->
+              <td class="py-2.5 px-4 text-right whitespace-nowrap">
+                <button
+                  v-if="user.email !== 'support@pvrge.com'"
+                  type="button"
+                  @click="openDeleteDialog(user)"
+                  class="inline-flex items-center justify-center rounded p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 dark:hover:text-rose-400 transition"
+                  title="Delete user"
+                >
+                  <Trash class="size-3.5" />
+                </button>
+                <span v-else class="text-xs text-gray-400 dark:text-gray-500">-</span>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -294,5 +360,28 @@ onMounted(() => {
         Showing {{ filteredUsers.length }} of {{ users.length }} users
       </div>
     </div>
+
+    <!-- Confirm Delete Dialog -->
+    <AlertDialog :open="!!userToDelete" @update:open="(open) => { if (!open) userToDelete = null; }">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete User</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete <span class="font-semibold text-gray-900 dark:text-white">{{ userToDelete?.email }}</span>? All messages and attachments associated with this account will be permanently deleted. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="isDeleting">Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            @click="confirmDeleteUser"
+            :disabled="isDeleting"
+            class="bg-rose-600 hover:bg-rose-700 text-white"
+          >
+            <Spinner v-if="isDeleting" class="size-3.5 animate-spin mr-1.5" />
+            {{ isDeleting ? 'Deleting...' : 'Delete' }}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>
