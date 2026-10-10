@@ -133,27 +133,6 @@ function markAsRead(id) {
   }
 }
 
-const AVATAR_GRADIENTS = [
-  'from-emerald-500 to-teal-600',
-  'from-blue-500 to-indigo-600',
-  'from-violet-500 to-purple-600',
-  'from-amber-500 to-orange-600',
-  'from-rose-500 to-pink-600',
-  'from-cyan-500 to-blue-600',
-  'from-fuchsia-500 to-rose-600',
-  'from-lime-500 to-emerald-600',
-];
-
-function getAvatarColor(name) {
-  if (!name) return AVATAR_GRADIENTS[0];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const index = Math.abs(hash) % AVATAR_GRADIENTS.length;
-  return AVATAR_GRADIENTS[index];
-}
-
 function getInitial(sender) {
   if (!sender) return 'U';
   const clean = sender.trim().replace(/^["'<]+/, '');
@@ -668,146 +647,50 @@ onUnmounted(() => {
       <!-- Card List -->
       <div class="mt-6 overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800/75">
         <ul class="divide-y divide-gray-200 dark:divide-gray-700/50">
-          <template v-for="msg in messages" :key="msg.id">
-            <!-- Email OTP -->
-            <li v-if="getMsgOtp(msg)">
-              <a
-                href="#"
-                @click.prevent="selectMessage(msg.id)"
-                class="group block transition hover:bg-emerald-50/40 focus:outline-none dark:hover:bg-emerald-950/20 dark:focus:bg-emerald-950/20 cursor-pointer p-4 sm:px-6 bg-gradient-to-r from-emerald-50/20 to-transparent dark:from-emerald-950/10"
-                :class="{ 'bg-emerald-50/40 dark:bg-emerald-950/30': !readMessageIds.has(msg.id) }"
-              >
-                <div class="flex items-start gap-4">
-                  <!-- Avatar gradient + initial -->
-                  <div class="shrink-0 relative mt-0.5">
-                    <span
-                      class="inline-flex items-center justify-center shrink-0 select-none rounded-full align-middle size-11 text-lg font-bold text-white bg-gradient-to-br shadow-sm"
-                      :class="getAvatarColor(msg.from_name || msg.from_address)"
-                    >
-                      {{ getInitial(msg.from_name || msg.from_address) }}
+          <li v-for="msg in messages" :key="msg.id">
+            <div
+              @click="selectMessage(msg.id)"
+              class="group block transition hover:bg-gray-50 focus:outline-none dark:hover:bg-gray-900/50 dark:focus:bg-gray-900/50 cursor-pointer"
+            >
+              <div class="flex items-center p-4 sm:px-6">
+                <div class="flex min-w-0 flex-1 items-center">
+                  <div class="shrink-0">
+                    <span class="relative inline-block">
+                      <div data-slot="root" class="relative inline-flex items-center justify-center shrink-0">
+                        <span data-slot="root" class="inline-flex items-center justify-center shrink-0 select-none rounded-full align-middle size-11 text-[22px] bg-lime-200 dark:bg-lime-700 transition">
+                          <span data-slot="fallback" class="truncate leading-none font-medium text-gray-600 group-hover:text-gray-700 dark:text-gray-300 dark:group-hover:text-gray-200">
+                            {{ (msg.from_name || msg.from_address || '?').charAt(0).toUpperCase() }}
+                          </span>
+                        </span>
+                      </div>
                     </span>
-                    <span
-                      v-if="!readMessageIds.has(msg.id)"
-                      class="absolute -top-0.5 -right-0.5 size-3 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-800"
-                      title="Unread"
-                    ></span>
                   </div>
-
-                  <!-- Main info -->
-                  <div class="min-w-0 flex-1">
-                    <!-- Baris atas: Sender (bold emerald), badge Verified / Unverified, relative time di kanan -->
-                    <div class="flex items-center justify-between gap-2">
-                      <div class="flex items-center gap-2 min-w-0">
-                        <span class="truncate text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                          {{ msg.from_name || msg.from_address }}
-                        </span>
-                        <span
-                          v-if="msg.auth_status === 'pass'"
-                          class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-500/30 shrink-0"
-                        >Verified</span>
-                        <span
-                          v-else
-                          class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-500/30 shrink-0"
-                        >Unverified</span>
+                  <div class="min-w-0 flex-1 px-4 md:grid md:grid-cols-2 md:gap-4">
+                    <div class="min-w-0 flex-auto">
+                      <div class="truncate text-sm/5 font-medium text-emerald-600 dark:text-emerald-400">
+                        {{ msg.from_name || msg.from_address }}
                       </div>
-                      <time class="truncate text-xs text-gray-500 dark:text-gray-400 shrink-0">
-                        {{ formatRelativeTime(msg.received_at || msg.created_at) }}
-                      </time>
-                    </div>
-
-                    <!-- Baris tengah: Subject email jelas -->
-                    <div class="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-white">
-                      {{ msg.subject || '(No subject)' }}
-                    </div>
-
-                    <!-- Pill Box OTP Prominen -->
-                    <div class="bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 rounded-lg p-2.5 flex items-center justify-between mt-2">
-                      <div class="flex items-center gap-2">
-                        <span class="text-xs font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">OTP Code:</span>
-                        <span class="font-mono text-base font-bold tracking-widest text-emerald-700 dark:text-emerald-300 select-all">
-                          {{ getMsgOtp(msg) }}
-                        </span>
+                      <div class="mt-1 flex items-center text-sm/5 text-gray-500 dark:text-gray-400">
+                        <Envelope class="text-gray-400 mr-1.5 size-4 shrink-0" />
+                        <span class="truncate">{{ msg.from_address }}</span>
                       </div>
-                      <button
-                        type="button"
-                        @click.stop.prevent="copyToClipboard(getMsgOtp(msg), 'otp-' + msg.id)"
-                        class="inline-flex items-center gap-1.5 rounded-md bg-white dark:bg-emerald-900/60 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700/60 shadow-xs hover:bg-emerald-100 dark:hover:bg-emerald-900 transition cursor-pointer"
-                        title="Copy OTP code"
-                      >
-                        <Check v-if="copiedKey === 'otp-' + msg.id" class="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                        <Copy v-else class="size-3.5 text-emerald-700 dark:text-emerald-400" />
-                        <span>{{ copiedKey === 'otp-' + msg.id ? 'Copied!' : 'Copy Code' }}</span>
-                      </button>
+                    </div>
+                    <div class="hidden md:block">
+                      <div>
+                        <div class="truncate text-sm/5 text-gray-900 dark:text-gray-300">
+                          {{ msg.subject || '(No subject)' }}
+                        </div>
+                        <div class="mt-1 flex items-center truncate text-sm/5 text-gray-400 dark:text-gray-400">
+                          {{ msg.intro || msg.snippet }}
+                        </div>
+                      </div>
                     </div>
                   </div>
-
-                  <ChevronRight class="size-4 text-gray-400 shrink-0 mt-3" />
                 </div>
-              </a>
-            </li>
-
-            <!-- Email Non-OTP -->
-            <li v-else>
-              <a
-                href="#"
-                @click.prevent="selectMessage(msg.id)"
-                class="group block transition hover:bg-gray-50 focus:outline-none dark:hover:bg-gray-900/50 dark:focus:bg-gray-900/50 cursor-pointer p-4 sm:px-6"
-                :class="{ 'bg-emerald-50/20 dark:bg-emerald-950/10': !readMessageIds.has(msg.id) }"
-              >
-                <div class="flex items-center gap-4">
-                  <!-- Avatar gradient + unread green dot jika belum dibaca -->
-                  <div class="shrink-0 relative">
-                    <span
-                      class="inline-flex items-center justify-center shrink-0 select-none rounded-full align-middle size-11 text-lg font-bold text-white bg-gradient-to-br shadow-sm"
-                      :class="getAvatarColor(msg.from_name || msg.from_address)"
-                    >
-                      {{ getInitial(msg.from_name || msg.from_address) }}
-                    </span>
-                    <span
-                      v-if="!readMessageIds.has(msg.id)"
-                      class="absolute -top-0.5 -right-0.5 size-3 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-800"
-                      title="Unread"
-                    ></span>
-                  </div>
-
-                  <!-- Info -->
-                  <div class="min-w-0 flex-1">
-                    <!-- Baris atas: Sender (bold), badge Verified / Unverified, relative time -->
-                    <div class="flex items-center justify-between gap-2">
-                      <div class="flex items-center gap-2 min-w-0">
-                        <span class="truncate text-sm font-bold text-gray-900 dark:text-white">
-                          {{ msg.from_name || msg.from_address }}
-                        </span>
-                        <span
-                          v-if="msg.auth_status === 'pass'"
-                          class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-500/30 shrink-0"
-                        >Verified</span>
-                        <span
-                          v-else
-                          class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-500/30 shrink-0"
-                        >Unverified</span>
-                      </div>
-                      <time class="truncate text-xs text-gray-500 dark:text-gray-400 shrink-0">
-                        {{ formatRelativeTime(msg.received_at || msg.created_at) }}
-                      </time>
-                    </div>
-
-                    <!-- Baris tengah: Subject tegas -->
-                    <div class="mt-1 truncate text-sm font-semibold text-gray-800 dark:text-gray-200">
-                      {{ msg.subject || '(No subject)' }}
-                    </div>
-
-                    <!-- Baris bawah: Snippet teks bersih truncate -->
-                    <div class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
-                      {{ msg.intro || msg.snippet || 'No preview available' }}
-                    </div>
-                  </div>
-
-                  <ChevronRight class="size-4 text-gray-400 shrink-0 ml-1" />
-                </div>
-              </a>
-            </li>
-          </template>
+                <ChevronRight class="size-5 text-gray-400" />
+              </div>
+            </div>
+          </li>
         </ul>
       </div>
     </div>
@@ -926,20 +809,10 @@ onUnmounted(() => {
         </a>
 
         <div class="mt-2 md:flex md:items-center md:justify-between">
-          <div class="min-w-0 flex-1 flex items-center gap-2">
+          <div class="min-w-0 flex-1">
             <h2 class="text-2xl/7 font-bold text-gray-900 sm:truncate dark:text-gray-300">
               {{ selectedMessageDetail.subject || '(No Subject)' }}
             </h2>
-            <button
-              v-if="selectedMessageDetail.subject"
-              type="button"
-              @click="copyToClipboard(selectedMessageDetail.subject, 'detail-subject')"
-              class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300 transition cursor-pointer shrink-0"
-              title="Copy subject"
-            >
-              <Check v-if="copiedKey === 'detail-subject'" class="size-4 text-emerald-500" />
-              <Copy v-else class="size-4" />
-            </button>
           </div>
           <div class="relative mt-4 flex shrink-0 md:mt-0 md:ml-4">
             <!-- Trigger Dropdown -->
@@ -1016,11 +889,10 @@ onUnmounted(() => {
             <div class="mt-4 ml-4">
               <div class="flex items-center">
                 <div class="shrink-0">
-                  <span
-                    class="inline-flex items-center justify-center shrink-0 select-none rounded-full align-middle size-10 text-lg font-bold text-white bg-gradient-to-br shadow-sm transition"
-                    :class="getAvatarColor(selectedMessageDetail.sender_name || selectedMessageDetail.sender_email)"
-                  >
-                    {{ getInitial(selectedMessageDetail.sender_name || selectedMessageDetail.sender_email) }}
+                  <span class="inline-flex items-center justify-center shrink-0 select-none rounded-full align-middle size-10 text-xl bg-lime-200 dark:bg-lime-700 transition">
+                    <span class="truncate leading-none font-medium text-gray-600 group-hover:text-gray-700 dark:text-gray-300 dark:group-hover:text-gray-200">
+                      {{ getInitial(selectedMessageDetail.sender_name || selectedMessageDetail.sender_email) }}
+                    </span>
                   </span>
                 </div>
                 <div class="ml-4">
@@ -1029,16 +901,6 @@ onUnmounted(() => {
                     <span v-if="selectedMessageDetail.sender_name && selectedMessageDetail.sender_email" class="text-sm/5 font-normal text-gray-700 dark:text-gray-400">
                       {{ selectedMessageDetail.sender_email }}
                     </span>
-                    <button
-                      v-if="selectedMessageDetail.sender_email"
-                      type="button"
-                      @click="copyToClipboard(selectedMessageDetail.sender_email, 'detail-sender')"
-                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300 transition cursor-pointer"
-                      title="Copy sender email"
-                    >
-                      <Check v-if="copiedKey === 'detail-sender'" class="size-3.5 text-emerald-500" />
-                      <Copy v-else class="size-3.5" />
-                    </button>
                     <span
                       v-if="selectedMessageDetail.auth_status === 'pass'"
                       class="ml-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-500/30"
