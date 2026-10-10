@@ -15,21 +15,13 @@
       "head_sampling_rate": 1,
       "invocation_logs": true,
       "persist": true
-    },
-    "traces": {
-      "enabled": true,
-      "head_sampling_rate": 1,
-      "persist": true
-    },
-    "issue_detection": {
-      "enabled": true
     }
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "pvrge-db",
-      "database_id": "placeholder-d1-id"
+      "database_id": "8db09f7c-38a0-4f66-b2e2-edbb9f0c4451"
     }
   ],
   "r2_buckets": [
