@@ -1,5 +1,5 @@
 <script setup>
-import { CheckIcon } from "@lucide/vue";
+import Check from "@primeicons/vue/check";
 import { reactiveOmit } from "@vueuse/core";
 import {
   SelectItem,
@@ -39,7 +39,7 @@ const forwardedProps = useForwardProps(delegatedProps);
     >
       <SelectItemIndicator>
         <slot name="indicator-icon">
-          <CheckIcon class="pointer-events-none" />
+          <Check class="pointer-events-none" />
         </slot>
       </SelectItemIndicator>
     </span>

@@ -132,7 +132,7 @@ async function handleLogin() {
           :class="[
             'flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg transition',
             mode === 'create'
-              ? 'bg-lime-500/10 text-lime-600 dark:text-lime-400'
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
           ]"
         >
@@ -146,7 +146,7 @@ async function handleLogin() {
           :class="[
             'flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg transition',
             mode === 'login'
-              ? 'bg-lime-500/10 text-lime-600 dark:text-lime-400'
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
           ]"
         >
@@ -172,7 +172,7 @@ async function handleLogin() {
             type="text"
             placeholder="Leave blank for random (e.g. swiftfox42)"
             pattern="[a-z0-9]{3,32}"
-            class="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-lime-500 font-mono"
+            class="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
           />
           <span class="text-[11px] text-gray-400 mt-1 block">3-32 lowercase letters and numbers</span>
         </div>
@@ -183,16 +183,21 @@ async function handleLogin() {
           </label>
           <Select v-model="selectedDomain">
             <SelectTrigger
-              class="w-full h-10 px-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-lime-500"
+              class="w-full h-[42px] px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 flex items-center justify-between"
             >
               <SelectValue placeholder="Select domain" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="d in domains" :key="d.id" :value="d.id">
+            <SelectContent position="popper" class="w-full min-w-[var(--reka-select-trigger-width)] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg rounded-lg z-50">
+              <SelectItem
+                v-for="d in domains"
+                :key="d.id"
+                :value="d.id"
+                class="font-mono text-sm py-2 px-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/60 rounded"
+              >
                 @{{ d.id }}
               </SelectItem>
-              <SelectItem v-if="domains.length === 0" value="default">
-                Default (@pvrge.com)
+              <SelectItem v-if="domains.length === 0" value="default" class="font-mono text-sm py-2 px-3">
+                @pvrge.com
               </SelectItem>
             </SelectContent>
           </Select>
@@ -206,7 +211,7 @@ async function handleLogin() {
             v-model="password"
             type="password"
             placeholder="Leave blank for auto-generated"
-            class="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-lime-500 font-mono"
+            class="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
           />
         </div>
 
@@ -221,7 +226,7 @@ async function handleLogin() {
           <button
             type="submit"
             :disabled="isSubmitting"
-            class="flex items-center gap-2 px-5 py-2.5 bg-lime-600 hover:bg-lime-500 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50 shadow-sm"
+            class="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50 shadow-sm"
           >
             <Spinner v-if="isSubmitting" class="size-4 animate-spin" />
             <Sparkles v-else class="size-4" />
@@ -241,7 +246,7 @@ async function handleLogin() {
             type="email"
             required
             placeholder="name@domain.com"
-            class="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-lime-500 font-mono"
+            class="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
           />
         </div>
 
@@ -254,7 +259,7 @@ async function handleLogin() {
             type="password"
             required
             placeholder="Enter account password"
-            class="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-lime-500 font-mono"
+            class="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
           />
         </div>
 
@@ -269,7 +274,7 @@ async function handleLogin() {
           <button
             type="submit"
             :disabled="isSubmitting"
-            class="flex items-center gap-2 px-5 py-2.5 bg-lime-600 hover:bg-lime-500 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50 shadow-sm"
+            class="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50 shadow-sm"
           >
             <Spinner v-if="isSubmitting" class="size-4 animate-spin" />
             <SignIn v-else class="size-4 shrink-0" />
