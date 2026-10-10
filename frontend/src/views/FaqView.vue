@@ -21,93 +21,117 @@
         <h1 class="text-2xl/7 font-bold text-gray-900 sm:truncate dark:text-gray-300">
           Frequently Asked Questions
         </h1>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Everything you need to know about pvrge disposable temporary mail, capabilities, and boundaries.
+        </p>
       </div>
     </div>
 
     <div class="mt-4 overflow-hidden border-b border-gray-200 bg-white px-4 py-5 shadow sm:rounded-md sm:px-6 dark:border-gray-900 dark:bg-gray-800/75 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
       <div class="divide-y divide-gray-200 dark:divide-gray-700/60 space-y-5">
+        <!-- FAQ 1 -->
         <div class="pt-2 first:pt-0 space-y-1.5">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            What is temporary / disposable / anonymous mail?
+            1. What is pvrge and how does it work?
           </h2>
           <p>
-            A disposable mailbox is a temporary, completely anonymous email address that requires no registration.
+            pvrge is a modern, high-speed, and privacy-first disposable temporary email service. It gives you instant, throwaway inboxes without registration, personal identification, or passwords. Incoming emails appear in real time, are accessible strictly during your session, and are automatically purged after 24 hours.
           </p>
         </div>
 
+        <!-- FAQ 2 -->
         <div class="pt-5 space-y-1.5">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            Why would I need a temporary email address?
+            2. Can I use custom usernames and multiple domains?
           </h2>
           <p>
-            For signing up on sites you don't fully trust, for anonymous conversations, forums and giveaways: any situation where you want messages delivered instantly without exposing your identity.
+            Yes. You can either generate a secure random address using our built-in username generator or manually specify your desired mailbox prefix. You can select any active domain from our managed multi-domain pool and concurrently switch between multiple disposable accounts right inside your browser.
           </p>
         </div>
 
+        <!-- FAQ 3 -->
         <div class="pt-5 space-y-1.5">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            How is it different from regular mail?
+            3. Can I send outbound emails or reply to messages?
           </h2>
-          <ul class="list-disc list-inside space-y-1 pl-2">
-            <li>It requires no registration;</li>
-            <li>It is completely anonymous: your personal data, the address itself and all emails are erased once you delete the mailbox;</li>
-            <li>Messages are delivered instantly;</li>
-            <li>The address is generated automatically, so there is no hunting for a free username;</li>
-            <li>The mailbox is protected from spam, hacking and exploits.</li>
+          <p>
+            No. pvrge is strictly an <strong>inbound-only</strong> service. Outbound email sending, forwarding, and replying are disabled by design. This restriction protects our server IP reputation, eliminates spam relays and abuse, and ensures high deliverability for all incoming verification emails.
+          </p>
+        </div>
+
+        <!-- FAQ 4 -->
+        <div class="pt-5 space-y-1.5">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+            4. How long do you retain incoming messages? (24-Hour Retention)
+          </h2>
+          <p>
+            All received emails and attachments are automatically and irreversibly deleted after <strong>24 hours</strong> from arrival. We do not maintain backups, historical archives, or recovery logs once the retention window expires.
+          </p>
+        </div>
+
+        <!-- FAQ 5 -->
+        <div class="pt-5 space-y-1.5">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+            5. How does automatic OTP and verification code extraction work?
+          </h2>
+          <p>
+            When verification emails arrive, pvrge's parser automatically detects one-time passwords (OTP), 2FA tokens, and numerical activation codes. The extracted code is highlighted directly in the message header with a quick-copy button, allowing you to finish account activations with one click.
+          </p>
+        </div>
+
+        <!-- FAQ 6 -->
+        <div class="pt-5 space-y-1.5">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+            6. What are the SPF and DKIM security badges?
+          </h2>
+          <p>
+            Each incoming email is validated cryptographically against sender policy frameworks (SPF) and DomainKeys Identified Mail (DKIM). We display clear verification badges in the email viewer so you can instantly verify whether an email genuinely originated from the claimed domain or is potentially spoofed.
+          </p>
+        </div>
+
+        <!-- FAQ 7 -->
+        <div class="pt-5 space-y-1.5">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+            7. Is reading emails safe from trackers and malware? (Sandboxed Viewer)
+          </h2>
+          <p>
+            Yes. pvrge renders HTML email bodies inside an isolated, sandboxed viewer with restricted execution policies. Tracking pixels, external script execution, unauthorized cookies, and dangerous DOM elements are effectively blocked to prevent stealth tracking and phishing exploits.
+          </p>
+        </div>
+
+        <!-- FAQ 8 -->
+        <div class="pt-5 space-y-1.5">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+            8. Can I download attachments and export raw RFC 822 source?
+          </h2>
+          <p>
+            Yes. Any attachments sent with incoming messages can be safely downloaded from the email view. Additionally, technical users and developers can download the complete, unmodified raw RFC 822 (<code>.eml</code>) message file for offline inspection, header analysis, or auditing.
+          </p>
+        </div>
+
+        <!-- FAQ 9 -->
+        <div class="pt-5 space-y-1.5">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+            9. What are the service limitations and size quotas?
+          </h2>
+          <p>
+            To maintain high availability and prevent platform degradation, the following limits apply:
+          </p>
+          <ul class="list-disc list-inside space-y-1 pl-2 mt-2">
+            <li><strong>Maximum Email Size:</strong> 2 MB per email (larger messages will be rejected by our MX servers).</li>
+            <li><strong>Maximum Attachments:</strong> Up to 5 attachments per message.</li>
+            <li><strong>Account Creation Limit:</strong> Up to 5 new accounts per day per IP address.</li>
+            <li><strong>Inbound Only:</strong> No outbound sending or relaying capabilities.</li>
           </ul>
         </div>
 
+        <!-- FAQ 10 -->
         <div class="pt-5 space-y-1.5">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            How do I send an email?
+            10. I forgot my credentials or deleted my inbox. Can you reset or restore it?
           </h2>
           <p>
-            Unfortunately, we do not provide this feature.
-          </p>
-        </div>
-
-        <div class="pt-5 space-y-1.5">
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            How do I extend the lifetime of my temporary mailbox?
-          </h2>
-          <p>
-            There is nothing to extend: your mailbox stays valid until you delete it yourself.
-          </p>
-        </div>
-
-        <div class="pt-5 space-y-1.5">
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            How long do you store incoming messages?
-          </h2>
-          <p>
-            We store messages for 24 hours only. Sorry, we can't keep them indefinitely.
-          </p>
-        </div>
-
-        <div class="pt-5 space-y-1.5">
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            Can I read the emails I receive?
-          </h2>
-          <p>
-            Yes, they appear right under your mailbox address, showing the sender, the subject and the text of each message. If the email you're waiting for isn't there yet, click "Refresh".
-          </p>
-        </div>
-
-        <div class="pt-5 space-y-1.5">
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            Do you keep renewing the domains used by this service?
-          </h2>
-          <p>
-            Yes, we always renew our domains, so they won't disappear.
-          </p>
-        </div>
-
-        <div class="pt-5 space-y-1.5">
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-            I forgot my password. Can you reset it?
-          </h2>
-          <p>
-            No. Your password is generated in your browser and stored encrypted, so there is no way for us to reset it.
+            No. pvrge does not offer password reset or mailbox recovery. Because we operate under a strict zero-knowledge model, your access tokens exist only within your device's browser storage. We do not store personal identification, recovery emails, or phone numbers to verify ownership.
           </p>
         </div>
       </div>
