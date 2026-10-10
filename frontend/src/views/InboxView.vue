@@ -32,6 +32,8 @@ const router = useRouter();
 const session = useSession();
 const { activeAccount, rateLimitState, handleResponseStatus } = session;
 
+const routePrefix = computed(() => route.path.startsWith('/onduty') ? '/onduty' : '');
+
 const messages = ref([]);
 const selectedMessageId = computed(() => route.params.id || null);
 const selectedMessageDetail = ref(null);
@@ -321,11 +323,11 @@ watch(
 
 function selectMessage(msgOrId) {
   const id = typeof msgOrId === 'object' && msgOrId !== null ? msgOrId.id : msgOrId;
-  router.push('/view/' + id);
+  router.push(routePrefix.value + '/view/' + id);
 }
 
 function deselectMessage() {
-  router.push('/');
+  router.push(routePrefix.value || '/');
 }
 
 function downloadEmail() {
@@ -350,11 +352,11 @@ async function toggleSource() {
   showActionsMenu.value = false;
   if (isShowingSource.value) {
     if (selectedMessageDetail.value?.id) {
-      router.push('/view/' + selectedMessageDetail.value.id);
+      router.push(routePrefix.value + '/view/' + selectedMessageDetail.value.id);
     }
   } else {
     if (selectedMessageDetail.value?.id) {
-      router.push('/view/' + selectedMessageDetail.value.id + '/source');
+      router.push(routePrefix.value + '/view/' + (selectedMessageDetail?.id || route.params.id) + '/source');
     }
   }
 }
@@ -432,7 +434,7 @@ async function confirmDeleteMessage() {
     const totalBytes = messages.value.reduce((acc, m) => acc + (m.size || 0), 0);
     session.setStorageBytes(totalBytes);
     showDeleteMessageDialog.value = false;
-    router.push('/');
+    router.push(routePrefix.value || '/');
   } catch (err) {
     errorDialog.value = {
       open: true,
@@ -638,7 +640,7 @@ watch(
       document.title = defaultTitle.value;
     }
     if (route.params.id) {
-      router.push('/');
+      router.push(routePrefix.value || '/');
     }
     if (newId) {
       fetchMessages(false);
@@ -776,7 +778,7 @@ onUnmounted(() => {
         <ul class="divide-y divide-gray-200 dark:divide-gray-700/50">
           <li v-for="msg in messages" :key="msg.id">
             <div
-              @click="router.push('/view/' + msg.id)"
+              @click="router.push(routePrefix.value + '/view/' + msg.id)"
               class="group block transition hover:bg-gray-50 focus:outline-none dark:hover:bg-gray-900/50 dark:focus:bg-gray-900/50 cursor-pointer"
             >
               <div class="flex items-center p-4 sm:px-6">
@@ -863,7 +865,7 @@ onUnmounted(() => {
 
       <div v-else-if="isShowingSource">
         <router-link
-          :to="'/view/' + (selectedMessageDetail?.id || route.params.id)"
+          :to="routePrefix.value + '/view/' + (selectedMessageDetail?.id || route.params.id)"
           class="inline-flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500 mb-2"
         >
           <svg class="mr-1 -ml-1 size-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -911,7 +913,7 @@ onUnmounted(() => {
               <!-- View message -->
               <button
                 type="button"
-                @click="() => { showActionsMenu = false; router.push('/view/' + (selectedMessageDetail?.id || route.params.id)); }"
+                @click="() => { showActionsMenu = false; router.push(routePrefix.value + '/view/' + (selectedMessageDetail?.id || route.params.id)); }"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Code class="size-4 shrink-0" />
@@ -955,7 +957,7 @@ onUnmounted(() => {
       </div>
 
       <div v-else-if="selectedMessageDetail">
-        <router-link to="/" class="inline-flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500">
+        <router-link :to="routePrefix.value || '/'" class="inline-flex items-center text-base/5 font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-500">
           <svg class="mr-1 -ml-1 size-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"></path>
           </svg>
@@ -1004,7 +1006,7 @@ onUnmounted(() => {
               <!-- Source -->
               <button
                 type="button"
-                @click="() => { showActionsMenu = false; router.push('/view/' + selectedMessageDetail.id + '/source'); }"
+                @click="() => { showActionsMenu = false; router.push(routePrefix.value + '/view/' + (selectedMessageDetail?.id || route.params.id) + '/source'); }"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Code class="size-4 shrink-0" />

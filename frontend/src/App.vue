@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import SignOut from '@primeicons/vue/sign-out';
 import User from '@primeicons/vue/user';
+import Users from '@primeicons/vue/users';
 import SignIn from '@primeicons/vue/sign-in';
 import Trash from '@primeicons/vue/trash';
 import Times from '@primeicons/vue/times';
@@ -27,6 +28,8 @@ const route = useRoute();
 const router = useRouter();
 const session = useSession();
 const { isDark, toggleTheme } = useTheme();
+
+const isOnDuty = computed(() => route.path.startsWith('/onduty'));
 
 const activeAccount = session.activeAccount;
 const accounts = session.accounts;
@@ -180,20 +183,19 @@ onUnmounted(() => {
 
         <!-- Mobile Brand/Logo -->
         <div class="flex shrink-0 items-center px-4">
-          <router-link to="/" @click="mobileMenuOpen = false" class="flex items-center gap-2">
-            <span class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">
-              <span class="text-emerald-600 dark:text-emerald-400">pv</span>rge
-            </span>
+          <router-link :to="isOnDuty ? '/onduty' : '/'" @click="mobileMenuOpen = false" class="flex items-center gap-2">
+            <span class="text-2xl font-bold font-mono tracking-tight text-gray-900 dark:text-white">pvrge</span>
+            <span v-if="isOnDuty" class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono uppercase bg-emerald-600 text-white tracking-wider">DUTY</span>
           </router-link>
         </div>
 
         <!-- Mobile Navigasi -->
         <nav class="mt-5 flex-1 space-y-1 px-2 overflow-y-auto">
           <router-link
-            to="/"
+            :to="isOnDuty ? '/onduty' : '/'"
             @click="mobileMenuOpen = false"
             class="group flex items-center rounded-md px-2 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
-            :class="{ 'bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white': route.path === '/' || route.path.startsWith('/view') }"
+            :class="{ 'bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white': (isOnDuty ? (route.path === '/onduty' || route.path.startsWith('/onduty/view')) : (route.path === '/' || route.path.startsWith('/view'))) }"
             active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
             exact-active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
           >
@@ -201,6 +203,17 @@ onUnmounted(() => {
               <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
             </svg>
             Inbox
+          </router-link>
+
+          <router-link
+            v-if="isOnDuty"
+            to="/onduty/users"
+            @click="mobileMenuOpen = false"
+            class="group flex items-center rounded-md px-2 py-2 text-sm font-medium transition"
+            :class="route.path === '/onduty/users' ? 'bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800/50'"
+          >
+            <Users class="mr-3 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            Users
           </router-link>
 
           <button
@@ -267,19 +280,18 @@ onUnmounted(() => {
       <div class="flex w-64 flex-col overflow-y-auto border-r border-gray-200 bg-white pt-5 pb-4 dark:border-gray-700 dark:bg-gray-900">
         <!-- Brand/Logo -->
         <div class="flex shrink-0 items-center px-4">
-          <router-link to="/" class="flex items-center gap-2">
-            <span class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">
-              <span class="text-emerald-600 dark:text-emerald-400">pv</span>rge
-            </span>
+          <router-link :to="isOnDuty ? '/onduty' : '/'" class="flex items-center gap-2">
+            <span class="text-2xl font-bold font-mono tracking-tight text-gray-900 dark:text-white">pvrge</span>
+            <span v-if="isOnDuty" class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono uppercase bg-emerald-600 text-white tracking-wider">DUTY</span>
           </router-link>
         </div>
 
         <!-- Navigasi: Inbox, Refresh -->
         <nav class="mt-5 flex-1 space-y-1 px-2">
           <router-link
-            to="/"
+            :to="isOnDuty ? '/onduty' : '/'"
             class="group flex items-center rounded-md px-2 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white"
-            :class="{ 'bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white': route.path === '/' || route.path.startsWith('/view') }"
+            :class="{ 'bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white': (isOnDuty ? (route.path === '/onduty' || route.path.startsWith('/onduty/view')) : (route.path === '/' || route.path.startsWith('/view'))) }"
             active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
             exact-active-class="bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white"
           >
@@ -287,6 +299,16 @@ onUnmounted(() => {
               <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
             </svg>
             Inbox
+          </router-link>
+
+          <router-link
+            v-if="isOnDuty"
+            to="/onduty/users"
+            class="group flex items-center rounded-md px-2 py-2 text-sm font-medium transition"
+            :class="route.path === '/onduty/users' ? 'bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800/50'"
+          >
+            <Users class="mr-3 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            Users
           </router-link>
 
           <button
@@ -490,8 +512,20 @@ onUnmounted(() => {
                       <span class="truncate font-medium">Log in</span>
                     </button>
 
+                    <!-- Exit Duty (for support@pvrge.com) -->
+                    <router-link
+                      v-if="activeAccount?.email === 'support@pvrge.com'"
+                      to="/"
+                      @click="isDropdownOpen = false"
+                      class="w-full flex items-center select-none outline-none rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-950/30 p-1.5 text-sm gap-2 text-emerald-600 dark:text-emerald-400 transition-colors text-left"
+                    >
+                      <SignOut class="text-sm shrink-0" />
+                      <span class="truncate font-medium">Exit Duty</span>
+                    </router-link>
+
                     <!-- Delete account -->
                     <button
+                      v-else
                       type="button"
                       @click="handleDeleteCurrentAccount"
                       class="w-full flex items-center select-none outline-none rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 p-1.5 text-sm gap-2 text-rose-600 dark:text-rose-400 transition-colors text-left"
@@ -505,7 +539,17 @@ onUnmounted(() => {
             </div>
 
             <!-- Sign out button (ikon arrow-right-start-on-rectangle) untuk menghapus/logout akun aktif -->
+            <router-link
+              v-if="activeAccount?.email === 'support@pvrge.com'"
+              to="/"
+              title="Exit Duty"
+              class="ml-3 rounded-full p-1 text-gray-400 hover:text-gray-500 outline-none focus:outline-none focus:ring-0 active:outline-none dark:hover:text-gray-300"
+            >
+              <span class="sr-only">Exit Duty</span>
+              <SignOut class="size-6 text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-500 cursor-pointer" />
+            </router-link>
             <button
+              v-else
               type="button"
               @click="handleDeleteAccount"
               title="Delete active account"
