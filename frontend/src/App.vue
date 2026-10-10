@@ -439,10 +439,14 @@ onUnmounted(() => {
                         <p class="cursor-pointer text-sm font-medium text-gray-800 select-all dark:text-gray-200 truncate" @click="handleCopyEmail">{{ activeAccount?.email }}</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           Password:
-                          <span @click="copyPassword" class="cursor-pointer select-all account-blur hover:filter-none transition-all font-mono font-medium text-gray-800 dark:text-gray-200" :title="copiedPassword ? 'Copied!' : 'Click to copy'">
+                          <span
+                            @click="copyPassword"
+                            class="cursor-pointer select-all account-blur hover:filter-none transition-colors font-mono font-medium"
+                            :class="copiedPassword ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-800 dark:text-gray-200'"
+                            :title="copiedPassword ? 'Copied!' : 'Click to copy'"
+                          >
                             {{ activeAccount?.password || '••••••••' }}
                           </span>
-                          <span v-if="copiedPassword" class="ml-1 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">Copied!</span>
                         </p>
                       </div>
                     </div>
