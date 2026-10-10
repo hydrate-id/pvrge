@@ -2,6 +2,42 @@ import { ref, computed } from 'vue';
 
 const STORAGE_KEY = 'pvrge_sessions';
 
+const dutySession = ref(null);
+function loadDutySession() {
+  try {
+    const raw = localStorage.getItem('pvrge_duty_session');
+    dutySession.value = raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    dutySession.value = null;
+  }
+}
+loadDutySession();
+
+async function loginDuty(password) {
+  isLoading.value = true;
+  error.value = null;
+  try {
+    const res = await fetch('/api/auth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'support@pvrge.com', password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Invalid admin credentials');
+    const sessionData = { token: data.token, account: data.account };
+    localStorage.setItem('pvrge_duty_session', JSON.stringify(sessionData));
+    dutySession.value = sessionData;
+    return sessionData;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+function logoutDuty() {
+  localStorage.removeItem('pvrge_duty_session');
+  dutySession.value = null;
+}
+
 const accounts = ref([]);
 const activeAccountId = ref(null);
 const isLoading = ref(false);
@@ -247,6 +283,10 @@ export function useSession() {
   }
 
   return {
+    dutySession,
+    loginDuty,
+    logoutDuty,
+    loadDutySession,
     accounts,
     activeAccountId,
     activeAccount,
@@ -266,4 +306,4 @@ export function useSession() {
   };
 }
 
-export { rateLimitState, triggerRateLimit, handleResponseStatus };
+export { dutySession, loginDuty, logoutDuty, loadDutySession, rateLimitState, triggerRateLimit, handleResponseStatus };

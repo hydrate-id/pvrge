@@ -27,10 +27,7 @@ async function handleSubmit() {
   errorMessage.value = '';
 
   try {
-    await session.loginAccount({
-      email,
-      password: password.value,
-    });
+    await session.loginDuty(password.value);
 
     const target = route.query.redirect ? String(route.query.redirect) : '/onduty';
     router.push(target);

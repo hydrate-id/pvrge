@@ -12,7 +12,8 @@ import Users from '@primeicons/vue/users';
 import Envelope from '@primeicons/vue/envelope';
 
 const router = useRouter();
-const { activeAccount } = useSession();
+const session = useSession();
+const { activeAccount, dutySession } = session;
 
 const users = ref([]);
 const totalCount = ref(0);
@@ -57,7 +58,7 @@ async function handleCopy(text, id) {
 }
 
 async function fetchUsers() {
-  const token = activeAccount.value?.token;
+  const token = dutySession?.value?.token || activeAccount.value?.token;
   if (!token) {
     error.value = 'Not authenticated. Please log in as an administrator.';
     return;
@@ -149,7 +150,7 @@ onMounted(() => {
         <span class="font-medium">{{ error }}</span>
       </div>
       <router-link
-        v-if="!activeAccount?.token || error.includes('Admin')"
+        v-if="!(dutySession?.value?.token || activeAccount?.value?.token) || error.includes('Admin')"
         to="/onduty/login"
         class="font-semibold text-rose-900 underline hover:text-rose-700 dark:text-rose-200"
       >

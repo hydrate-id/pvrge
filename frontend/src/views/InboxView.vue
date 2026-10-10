@@ -30,9 +30,23 @@ import {
 const route = useRoute();
 const router = useRouter();
 const session = useSession();
-const { activeAccount, rateLimitState, handleResponseStatus } = session;
+const { activeAccount, dutySession, rateLimitState, handleResponseStatus } = session;
 
 const routePrefix = computed(() => route.path.startsWith('/onduty') ? '/onduty' : '');
+
+const currentAccount = computed(() => {
+  if (routePrefix.value === '/onduty') {
+    return dutySession.value?.account;
+  }
+  return activeAccount.value;
+});
+
+const currentToken = computed(() => {
+  if (routePrefix.value === '/onduty') {
+    return dutySession.value?.token;
+  }
+  return activeAccount.value?.token;
+});
 
 const messages = ref([]);
 const selectedMessageId = computed(() => route.params.id || null);
@@ -193,7 +207,7 @@ function formatBytes(bytes) {
 async function fetchMessages(quiet = false) {
   if (rateLimitState.value.isLimited) return;
 
-  const token = session.activeAccount.value?.token;
+  const token = currentToken.value;
   if (!token) return;
 
   if (!quiet) isLoadingList.value = true;
@@ -253,7 +267,7 @@ async function fetchMessages(quiet = false) {
 }
 
 async function fetchMessageDetail(id) {
-  const token = session.activeAccount.value?.token;
+  const token = currentToken.value;
   if (!token || !id) return;
 
   isLoadingDetail.value = true;
@@ -280,7 +294,7 @@ async function fetchMessageDetail(id) {
 }
 
 async function fetchSource(id) {
-  const token = session.activeAccount.value?.token;
+  const token = currentToken.value;
   if (!token || !id) return;
 
   isLoadingDetail.value = true;
@@ -301,7 +315,7 @@ async function fetchSource(id) {
 }
 
 watch(
-  [() => route.params.id, () => session.activeAccount.value?.token, () => route.name],
+  [() => route.params.id, () => currentToken.value, () => route.name],
   async ([id, token, routeName]) => {
     if (!id || !token) {
       selectedMessageDetail.value = null;
@@ -416,7 +430,7 @@ function deleteSelectedMessage() {
 }
 
 async function confirmDeleteMessage() {
-  const token = session.activeAccount.value?.token;
+  const token = currentToken.value;
   const id = selectedMessageId.value;
   if (!token || !id || isDeleting.value) return;
 
@@ -448,7 +462,7 @@ async function confirmDeleteMessage() {
 }
 
 async function downloadAttachment(att) {
-  const token = session.activeAccount.value?.token;
+  const token = currentToken.value;
   const msgId = selectedMessageId.value;
   if (!token || !msgId || !att?.id) return;
 
@@ -602,7 +616,7 @@ function scheduleNextPoll() {
     ? (rateLimitState.value.retryAfter + 1) * 1000
     : (document.visibilityState === 'visible' ? 4000 : 30000);
   pollTimer = setTimeout(async () => {
-    if (session.activeAccount.value) {
+    if (currentToken.value) {
       await fetchMessages(true);
     }
     scheduleNextPoll();
@@ -612,7 +626,7 @@ function scheduleNextPoll() {
 watch(
   () => rateLimitState.value.isLimited,
   (limited) => {
-    if (!limited && session.activeAccount.value) {
+    if (!limited && currentToken.value) {
       scheduleNextPoll();
     }
   }
@@ -631,8 +645,8 @@ function handleExternalRefresh() {
 }
 
 watch(
-  () => session.activeAccountId.value,
-  (newId) => {
+  [() => session.activeAccountId.value, () => dutySession.value?.token, () => routePrefix.value],
+  ([newId]) => {
     selectedMessageDetail.value = null;
     rawSourceText.value = '';
     hasInitialFetch.value = false;
@@ -642,7 +656,7 @@ watch(
     if (route.params.id) {
       router.push(routePrefix.value || '/');
     }
-    if (newId) {
+    if (currentToken.value) {
       fetchMessages(false);
     } else {
       messages.value = [];
@@ -655,7 +669,7 @@ onMounted(() => {
   if (typeof document !== 'undefined') {
     defaultTitle.value = document.title;
   }
-  if (session.activeAccount.value) {
+  if (currentToken.value) {
     fetchMessages(false);
   }
   scheduleNextPoll();
@@ -1071,7 +1085,7 @@ onUnmounted(() => {
                       <path fill-rule="evenodd" d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884zM18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" clip-rule="evenodd"></path>
                     </svg>
                     <span class="truncate">
-                      <a :href="'mailto:' + activeAccount?.email" class="ml-1">{{ activeAccount?.email }};</a>
+                      <a :href="'mailto:' + currentAccount?.email" class="ml-1">{{ currentAccount?.email }};</a>
                     </span>
                   </div>
                 </div>

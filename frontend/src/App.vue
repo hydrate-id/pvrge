@@ -34,8 +34,17 @@ const isOnDuty = computed(() => route.path.startsWith('/onduty'));
 const activeAccount = session.activeAccount;
 const accounts = session.accounts;
 
+function handleExitDuty() {
+  session.logoutDuty();
+  isDropdownOpen.value = false;
+  router.push('/');
+}
+
 function handleCopyEmail() {
-  copyEmail(activeAccount.value?.email);
+  const email = isOnDuty.value
+    ? (session.dutySession.value?.account?.email || 'support@pvrge.com')
+    : session.activeAccount.value?.email;
+  copyEmail(email);
 }
 
 const isRefreshing = ref(false);
@@ -157,7 +166,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-gray-100 antialiased dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+  <div v-if="route.path === '/onduty/login'" class="min-h-screen w-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+    <router-view />
+  </div>
+
+  <div v-else class="flex h-screen overflow-hidden bg-gray-100 antialiased dark:bg-gray-900 text-gray-900 dark:text-gray-100">
     <!-- MOBILE SIDEBAR BACKDROP & DRAWER -->
     <div
       v-if="mobileMenuOpen"
@@ -184,7 +197,9 @@ onUnmounted(() => {
         <!-- Mobile Brand/Logo -->
         <div class="flex shrink-0 items-center px-4">
           <router-link :to="isOnDuty ? '/onduty' : '/'" @click="mobileMenuOpen = false" class="flex items-center gap-2">
-            <span class="text-2xl font-bold font-mono tracking-tight text-gray-900 dark:text-white">pvrge</span>
+            <span class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">
+              <span class="text-emerald-600 dark:text-emerald-400">pv</span>rge
+            </span>
             <span v-if="isOnDuty" class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono uppercase bg-emerald-600 text-white tracking-wider">DUTY</span>
           </router-link>
         </div>
@@ -281,7 +296,9 @@ onUnmounted(() => {
         <!-- Brand/Logo -->
         <div class="flex shrink-0 items-center px-4">
           <router-link :to="isOnDuty ? '/onduty' : '/'" class="flex items-center gap-2">
-            <span class="text-2xl font-bold font-mono tracking-tight text-gray-900 dark:text-white">pvrge</span>
+            <span class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">
+              <span class="text-emerald-600 dark:text-emerald-400">pv</span>rge
+            </span>
             <span v-if="isOnDuty" class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono uppercase bg-emerald-600 text-white tracking-wider">DUTY</span>
           </router-link>
         </div>
@@ -399,7 +416,7 @@ onUnmounted(() => {
                   :class="[copied ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-gray-400', 'transition-colors duration-200']"
                   readonly
                   type="email"
-                  :value="activeAccount?.email || 'Generating...'"
+                  :value="isOnDuty ? (session.dutySession.value?.account?.email || 'support@pvrge.com') : (session.activeAccount.value?.email || 'Generating address...')"
                   @click="handleCopyEmail"
                 />
               </div>
@@ -435,7 +452,7 @@ onUnmounted(() => {
                   title="Manage Accounts"
                 >
                   <span class="inline-flex size-6 items-center justify-center select-none rounded-full text-xs font-bold uppercase bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
-                    {{ activeAccount?.email ? activeAccount.email.charAt(0).toUpperCase() : 'P' }}
+                    {{ (isOnDuty ? (session.dutySession.value?.account?.email || 'support@pvrge.com') : activeAccount?.email)?.charAt(0).toUpperCase() || 'P' }}
                   </span>
                 </button>
               </div>
@@ -458,7 +475,7 @@ onUnmounted(() => {
                     <div class="p-1.5 text-sm">
                       <div class="max-h-48 text-left break-all space-y-0.5">
                         <p class="text-xs text-gray-500 dark:text-gray-400">You are signed in as:</p>
-                        <p class="cursor-pointer text-sm font-medium text-gray-800 select-all dark:text-gray-200 truncate" @click="handleCopyEmail">{{ activeAccount?.email }}</p>
+                        <p class="cursor-pointer text-sm font-medium text-gray-800 select-all dark:text-gray-200 truncate" @click="handleCopyEmail">{{ isOnDuty ? (session.dutySession.value?.account?.email || 'support@pvrge.com') : activeAccount?.email }}</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           Password:
                           <span
@@ -512,16 +529,16 @@ onUnmounted(() => {
                       <span class="truncate font-medium">Log in</span>
                     </button>
 
-                    <!-- Exit Duty (for support@pvrge.com) -->
-                    <router-link
-                      v-if="activeAccount?.email === 'support@pvrge.com'"
-                      to="/"
-                      @click="isDropdownOpen = false"
+                    <!-- Exit Duty -->
+                    <button
+                      v-if="isOnDuty"
+                      type="button"
+                      @click="handleExitDuty"
                       class="w-full flex items-center select-none outline-none rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-950/30 p-1.5 text-sm gap-2 text-emerald-600 dark:text-emerald-400 transition-colors text-left"
                     >
                       <SignOut class="text-sm shrink-0" />
                       <span class="truncate font-medium">Exit Duty</span>
-                    </router-link>
+                    </button>
 
                     <!-- Delete account -->
                     <button
@@ -538,16 +555,17 @@ onUnmounted(() => {
               </transition>
             </div>
 
-            <!-- Sign out button (ikon arrow-right-start-on-rectangle) untuk menghapus/logout akun aktif -->
-            <router-link
-              v-if="activeAccount?.email === 'support@pvrge.com'"
-              to="/"
+            <!-- Sign out button (Exit Duty saat on duty, delete account saat user biasa) -->
+            <button
+              v-if="isOnDuty"
+              type="button"
+              @click="handleExitDuty"
               title="Exit Duty"
               class="ml-3 rounded-full p-1 text-gray-400 hover:text-gray-500 outline-none focus:outline-none focus:ring-0 active:outline-none dark:hover:text-gray-300"
             >
               <span class="sr-only">Exit Duty</span>
               <SignOut class="size-6 text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-500 cursor-pointer" />
-            </router-link>
+            </button>
             <button
               v-else
               type="button"

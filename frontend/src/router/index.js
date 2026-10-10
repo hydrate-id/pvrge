@@ -33,27 +33,16 @@ export const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   if (to.path.startsWith('/onduty') && to.path !== '/onduty/login') {
-    try {
-      const rawAccounts = localStorage.getItem('pvrge_accounts');
-      const activeId = localStorage.getItem('pvrge_active_account_id');
-      const accounts = rawAccounts ? JSON.parse(rawAccounts) : [];
-      const activeAccount = accounts.find(a => a.id === activeId);
-      const adminAccount = accounts.find(a => a.email === 'support@pvrge.com');
-
-      if (activeAccount?.email === 'support@pvrge.com') {
-        return next();
-      }
-
-      if (adminAccount) {
-        localStorage.setItem('pvrge_active_account_id', adminAccount.id);
-        window.dispatchEvent(new Event('storage'));
-        return next();
-      }
-
-      return next({ path: '/onduty/login', query: { redirect: to.fullPath } });
-    } catch (e) {
-      return next({ path: '/onduty/login', query: { redirect: to.fullPath } });
+    const duty = localStorage.getItem('pvrge_duty_session');
+    if (duty) {
+      try {
+        const parsed = JSON.parse(duty);
+        if (parsed?.token && parsed?.account?.email === 'support@pvrge.com') {
+          return next();
+        }
+      } catch (e) {}
     }
+    return next({ path: '/onduty/login', query: { redirect: to.fullPath } });
   }
   next();
 });
