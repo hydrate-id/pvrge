@@ -109,7 +109,7 @@ async function copyPassword() {
 function switchAccount(id) {
   session.switchAccount(id);
   isDropdownOpen.value = false;
-  if (route.path !== '/') {
+  if (!route.path.startsWith('/onduty') && route.path !== '/') {
     router.push('/');
   }
   handleRefresh();
@@ -117,7 +117,7 @@ function switchAccount(id) {
 const handleSwitch = switchAccount;
 
 function handleAccountReady() {
-  if (route.path !== '/') {
+  if (!route.path.startsWith('/onduty') && route.path !== '/') {
     router.push('/');
   }
   handleRefresh();

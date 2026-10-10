@@ -645,15 +645,17 @@ function handleExternalRefresh() {
 }
 
 watch(
-  [() => session.activeAccountId.value, () => dutySession.value?.token, () => routePrefix.value],
-  ([newId]) => {
+  () => (routePrefix.value === '/onduty' ? dutySession.value?.token : session.activeAccountId.value),
+  (newVal, oldVal) => {
+    if (newVal === oldVal) return;
     selectedMessageDetail.value = null;
     rawSourceText.value = '';
     hasInitialFetch.value = false;
     if (typeof document !== 'undefined') {
       document.title = defaultTitle.value;
     }
-    if (route.params.id) {
+    // Hanya push jika bukan inisialisasi awal dan route.params.id ada
+    if (oldVal !== undefined && route.params.id) {
       router.push(routePrefix.value || '/');
     }
     if (currentToken.value) {
@@ -792,7 +794,7 @@ onUnmounted(() => {
         <ul class="divide-y divide-gray-200 dark:divide-gray-700/50">
           <li v-for="msg in messages" :key="msg.id">
             <div
-              @click="router.push(routePrefix.value + '/view/' + msg.id)"
+              @click="selectMessage(msg.id)"
               class="group block transition hover:bg-gray-50 focus:outline-none dark:hover:bg-gray-900/50 dark:focus:bg-gray-900/50 cursor-pointer"
             >
               <div class="flex items-center p-4 sm:px-6">
