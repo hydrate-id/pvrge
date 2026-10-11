@@ -121,6 +121,20 @@ export async function verifyJWT(token: string, secret: string): Promise<JWTPaylo
   }
 }
 
+export async function createJwt(
+  payload: { sub: string; email: string; exp?: number },
+  secret?: string
+): Promise<string> {
+  return signJWT(
+    {
+      sub: payload.sub,
+      email: payload.email,
+      exp: payload.exp ?? Math.floor(Date.now() / 1000) + 7 * 24 * 3600
+    },
+    secret || "pvrge-default-secret-key-change-in-prod"
+  );
+}
+
 export function generatePassword(length = 14): string {
   const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*";
   const bytes = crypto.getRandomValues(new Uint8Array(length));

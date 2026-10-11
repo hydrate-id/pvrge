@@ -4,6 +4,7 @@ export interface Env {
   ASSETS?: Fetcher;
   JWT_SECRET?: string;
   ENVIRONMENT?: string;
+  DISABLE_RATE_LIMIT?: string;
 }
 
 export interface Domain {

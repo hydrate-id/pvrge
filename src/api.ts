@@ -2,13 +2,14 @@ import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { email } from "./email";
 import type { Account, AttachmentMeta, Domain, Env, Message } from "./types";
-import { generatePassword, hashPassword, signJWT, verifyJWT, verifyPassword } from "./crypto";
+import { createJwt, generatePassword, hashPassword, signJWT, verifyJWT, verifyPassword } from "./crypto";
 import { generateUsername, getRandomDomain } from "./generator";
 import {
   checkRateLimit,
   getClientIp,
   hashIp,
   isLoginBlocked,
+  isRateLimitBypassed,
   recordFailedLogin,
   resetFailedLogin
 } from "./rate-limit";
@@ -29,12 +30,85 @@ function getJwtSecret(env: Env): string {
   return env.JWT_SECRET;
 }
 
-async function getAuthUser(headers: Headers, env: Env) {
-  const authHeader = headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return null;
+function parseCookies(header: string | null): Record<string, string> {
+  if (!header) return {};
+  const cookies: Record<string, string> = {};
+  const pairs = header.split(";");
+  for (const pair of pairs) {
+    const idx = pair.indexOf("=");
+    if (idx > -1) {
+      const key = pair.slice(0, idx).trim();
+      const val = pair.slice(idx + 1).trim();
+      if (key) {
+        cookies[key] = decodeURIComponent(val);
+      }
+    }
   }
-  const token = authHeader.slice(7).trim();
+  return cookies;
+}
+
+function shouldSetSecureCookie(request: Request, env: Env): boolean {
+  if (isRateLimitBypassed(env, request)) return false;
+  return request.url.startsWith("https://");
+}
+
+function buildSetCookie(
+  name: string,
+  value: string,
+  options: { maxAge?: number; sameSite?: "Lax" | "Strict"; path?: string; secure?: boolean } = {}
+): string {
+  const maxAge = options.maxAge !== undefined ? options.maxAge : 604800;
+  const sameSite = options.sameSite || "Lax";
+  const path = options.path || "/";
+  const securePart = options.secure ? "; Secure" : "";
+  return `${name}=${value}; HttpOnly${securePart}; SameSite=${sameSite}; Path=${path}; Max-Age=${maxAge}`;
+}
+
+async function getAuthUser(reqOrHeaders: Request | Headers, env: Env) {
+  let headers: Headers;
+  let pathname = "";
+  if (reqOrHeaders instanceof Headers) {
+    headers = reqOrHeaders;
+  } else if ("headers" in reqOrHeaders && reqOrHeaders.headers instanceof Headers) {
+    headers = reqOrHeaders.headers;
+    try {
+      pathname = new URL(reqOrHeaders.url).pathname;
+    } catch {}
+  } else {
+    headers = new Headers();
+  }
+
+  const cookieHeader = headers.get("cookie");
+  const cookies = parseCookies(cookieHeader);
+
+  const isAdminOrDuty =
+    pathname.startsWith("/api/admin/") ||
+    pathname.startsWith("/api/duty") ||
+    headers.has("x-duty") ||
+    headers.has("x-duty-auth");
+
+  let token: string | undefined;
+
+  // 1. Cek pvrge_duty_session jika admin/duty
+  if (isAdminOrDuty && cookies.pvrge_duty_session) {
+    token = cookies.pvrge_duty_session;
+  }
+
+  // 2. Cek pvrge_session
+  if (!token && cookies.pvrge_session) {
+    token = cookies.pvrge_session;
+  }
+
+  // 3. Fallback header Authorization: Bearer <token>
+  if (!token) {
+    const authHeader = headers.get("authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.slice(7).trim();
+    }
+  }
+
+  if (!token) return null;
+
   const secret = getJwtSecret(env);
   const payload = await verifyJWT(token, secret);
   if (!payload) return null;
@@ -57,7 +131,7 @@ export const app = new Elysia({ aot: false })
     const clientIp = getClientIp(request.headers);
 
     // Burst protection (In-Memory): Max 2 requests per 30s per IP
-    const burstCheck = checkRateLimit(`account_burst:${clientIp}`, 2, 30);
+    const burstCheck = checkRateLimit(`account_burst:${clientIp}`, 2, 30, env, request);
     if (!burstCheck.allowed) {
       set.status = 429;
       set.headers["Retry-After"] = String(burstCheck.retryAfter);
@@ -66,13 +140,15 @@ export const app = new Elysia({ aot: false })
 
     // 24-hour limit (Durable D1): Max 5 accounts per day per IP
     const ipHash = await hashIp(clientIp);
-    const creationCount = await env.DB.prepare(
-      "SELECT COUNT(*) as count FROM ip_creations WHERE ip_hash = ? AND created_at > datetime('now', '-24 hours')"
-    ).bind(ipHash).first<{ count: number }>();
+    if (!isRateLimitBypassed(env, request)) {
+      const creationCount = await env.DB.prepare(
+        "SELECT COUNT(*) as count FROM ip_creations WHERE ip_hash = ? AND created_at > datetime('now', '-24 hours')"
+      ).bind(ipHash).first<{ count: number }>();
 
-    if (creationCount && creationCount.count >= 5) {
-      set.status = 429;
-      return { error: "Maximum of 5 accounts per day reached for this IP." };
+      if (creationCount && creationCount.count >= 5) {
+        set.status = 429;
+        return { error: "Maximum of 5 accounts per day reached for this IP." };
+      }
     }
 
     const reqBody = (body || {}) as { username?: string; domain?: string; password?: string };
@@ -128,9 +204,11 @@ export const app = new Elysia({ aot: false })
       "INSERT INTO accounts (id, email, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?)"
     ).bind(id, email, hash, salt, createdAt).run();
 
-    await env.DB.prepare(
-      "INSERT INTO ip_creations (ip_hash, created_at) VALUES (?, datetime('now'))"
-    ).bind(ipHash).run();
+    if (!isRateLimitBypassed(env, request)) {
+      await env.DB.prepare(
+        "INSERT INTO ip_creations (ip_hash, created_at) VALUES (?, datetime('now'))"
+      ).bind(ipHash).run();
+    }
 
     const secret = getJwtSecret(env);
     const token = await signJWT({
@@ -139,6 +217,11 @@ export const app = new Elysia({ aot: false })
       exp: Math.floor(Date.now() / 1000) + 7 * 24 * 3600
     }, secret);
 
+    set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", token, {
+      maxAge: 604800,
+      sameSite: "Lax",
+      secure: shouldSetSecureCookie(request, env)
+    });
     set.status = 201;
     return {
       id,
@@ -151,7 +234,7 @@ export const app = new Elysia({ aot: false })
     const clientIp = getClientIp(request.headers);
 
     // Brute-force protection: Max 5 failed attempts per IP per 15 min (900s)
-    const loginStatus = isLoginBlocked(clientIp);
+    const loginStatus = isLoginBlocked(clientIp, env, request);
     if (loginStatus.blocked) {
       set.status = 429;
       set.headers["Retry-After"] = String(loginStatus.retryAfter);
@@ -194,6 +277,20 @@ export const app = new Elysia({ aot: false })
       exp: Math.floor(Date.now() / 1000) + 7 * 24 * 3600
     }, secret);
 
+    if (email === "support@pvrge.com") {
+      set.headers["Set-Cookie"] = buildSetCookie("pvrge_duty_session", token, {
+        maxAge: 86400,
+        sameSite: "Strict",
+        secure: shouldSetSecureCookie(request, env)
+      });
+    } else {
+      set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", token, {
+        maxAge: 604800,
+        sameSite: "Lax",
+        secure: shouldSetSecureCookie(request, env)
+      });
+    }
+
     return {
       token,
       account: {
@@ -202,8 +299,57 @@ export const app = new Elysia({ aot: false })
       }
     };
   })
+  .post("/api/auth/logout", async ({ request, env, set }) => {
+    set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", "", {
+      maxAge: 0,
+      sameSite: "Lax",
+      secure: shouldSetSecureCookie(request, env)
+    });
+    return { success: true };
+  })
+  .post("/api/auth/duty-logout", async ({ request, env, set }) => {
+    set.headers["Set-Cookie"] = buildSetCookie("pvrge_duty_session", "", {
+      maxAge: 0,
+      sameSite: "Strict",
+      secure: shouldSetSecureCookie(request, env)
+    });
+    return { success: true };
+  })
+  .get("/api/duty/me", async ({ request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (user && user.email === "support@pvrge.com") {
+      return { authenticated: true, email: "support@pvrge.com" };
+    }
+    set.status = 401;
+    return { authenticated: false };
+  })
+  .post("/api/auth/switch", async ({ body, request, env, set }) => {
+    const reqBody = (body || {}) as { accountId?: string };
+    const accountId = reqBody.accountId;
+    if (!accountId) {
+      set.status = 404;
+      return { error: "Account not found" };
+    }
+
+    const target = await env.DB.prepare(
+      "SELECT id, email FROM accounts WHERE id = ?"
+    ).bind(accountId).first<{ id: string; email: string }>();
+
+    if (target && target.email !== "support@pvrge.com") {
+      const token = await createJwt({ sub: target.id, email: target.email }, env.JWT_SECRET || getJwtSecret(env));
+      set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", token, {
+        maxAge: 604800,
+        sameSite: "Lax",
+        secure: shouldSetSecureCookie(request, env)
+      });
+      return { success: true, account: { id: target.id, email: target.email } };
+    } else {
+      set.status = 404;
+      return { error: "Account not found" };
+    }
+  })
   .get("/api/accounts/me", async ({ request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -221,7 +367,7 @@ export const app = new Elysia({ aot: false })
     return { account };
   })
   .delete("/api/accounts/me", async ({ request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -264,21 +410,21 @@ export const app = new Elysia({ aot: false })
     const clientIp = getClientIp(request.headers);
 
     // Per-IP aggregate: Max 30 requests per 10s
-    const ipLimit = checkRateLimit(`poll_ip:${clientIp}`, 30, 10);
+    const ipLimit = checkRateLimit(`poll_ip:${clientIp}`, 30, 10, env, request);
     if (!ipLimit.allowed) {
       set.status = 429;
       set.headers["Retry-After"] = String(ipLimit.retryAfter);
       return { error: "Rate limit exceeded" };
     }
 
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
     }
 
     // Per-account token: Max 3 requests per 6s
-    const accountLimit = checkRateLimit(`poll_account:${user.id}`, 3, 6);
+    const accountLimit = checkRateLimit(`poll_account:${user.id}`, 3, 6, env, request);
     if (!accountLimit.allowed) {
       set.status = 429;
       set.headers["Retry-After"] = String(accountLimit.retryAfter);
@@ -297,7 +443,7 @@ export const app = new Elysia({ aot: false })
     return { messages };
   })
   .get("/api/admin/users", async ({ request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -320,7 +466,7 @@ export const app = new Elysia({ aot: false })
     return { users, total: users.length };
   })
   .delete("/api/admin/users/:id", async ({ params, request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -374,7 +520,7 @@ export const app = new Elysia({ aot: false })
     return { success: true };
   })
   .get("/api/messages/:id", async ({ params, request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -405,7 +551,7 @@ export const app = new Elysia({ aot: false })
     };
   })
   .get("/api/messages/:id/source", async ({ params, request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -453,7 +599,7 @@ ${message.body_html || message.body_text || ""}`;
     });
   })
   .delete("/api/messages/:id", async ({ params, request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -488,7 +634,7 @@ ${message.body_html || message.body_text || ""}`;
     return { success: true };
   })
   .get("/api/messages/:id/attachments/:attachmentId", async ({ params, request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };

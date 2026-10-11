@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS domains (
 
 INSERT OR IGNORE INTO domains (id, is_active) VALUES
 ('pvrge.com', 1),
-('suar.in', 1);
+('voyd.top', 1);
 
 CREATE TABLE IF NOT EXISTS accounts (
     id TEXT PRIMARY KEY,
