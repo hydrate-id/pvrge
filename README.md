@@ -90,7 +90,7 @@ The built-in **On-Duty Desk** provides internal staff administration for monitor
 
 ## ✨ Key Features
 
-- **🌐 Multi-Domain Round-Robin:** Supports multiple domain rotation (`pvrge.com`, `suar.in`, and configurable custom domains).
+- **🌐 Multi-Domain Round-Robin:** Supports multiple domain rotation (`pvrge.com`, `voyd.top`, and configurable custom domains).
 - **👤 Human-Friendly Username Generation:** Generates readable, natural usernames without dashes using the `[adjective][noun][2digit]` format (e.g., `swiftfox42@pvrge.com`).
 - **🔒 Permanent Account Retention & 24h Message Purge:** Accounts stay stored in browser storage for easy re-login, while inbound emails and attachments expire after 24 hours.
 - **⚡ Auto OTP / Verification Code Extraction:** Automatically parses verification codes and OTP tokens using smart regex matching with a one-click copy button.
