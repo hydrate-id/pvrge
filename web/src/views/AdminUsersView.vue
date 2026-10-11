@@ -11,6 +11,8 @@ import Spinner from '@primeicons/vue/spinner';
 import Envelope from '@primeicons/vue/envelope';
 import Times from '@primeicons/vue/times';
 import Trash from '@primeicons/vue/trash';
+import Eye from '@primeicons/vue/eye';
+import EyeSlash from '@primeicons/vue/eye-slash';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +23,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 
 const router = useRouter();
 const session = useSession();
@@ -34,14 +44,49 @@ const copiedId = ref(null);
 const userToDelete = ref(null);
 const isDeleting = ref(false);
 
+// Multi-select & Bulk delete state
+const selectedUserIds = ref([]);
+const isBulkDeleteDialogOpen = ref(false);
+const isBulkDeleting = ref(false);
+
+// New Duty Account modal state
+const isNewDutyModalOpen = ref(false);
+const newDutyEmail = ref('');
+const newDutyPassword = ref('');
+const showDutyPassword = ref(false);
+const isCreatingDuty = ref(false);
+const dutyFormError = ref('');
+
 const filteredUsers = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   if (!q) return users.value;
   return users.value.filter((u) => u.email.toLowerCase().includes(q));
 });
 
+const selectableUsers = computed(() =>
+  filteredUsers.value.filter((u) => !u.is_duty && u.email !== 'support@pvrge.com')
+);
+
+const isAllSelected = computed(
+  () =>
+    selectableUsers.value.length > 0 &&
+    selectableUsers.value.every((u) => selectedUserIds.value.includes(u.id))
+);
+
+const isIndeterminate = computed(
+  () => selectedUserIds.value.length > 0 && !isAllSelected.value
+);
+
+function toggleSelectAll() {
+  if (isAllSelected.value) {
+    selectedUserIds.value = [];
+  } else {
+    selectedUserIds.value = selectableUsers.value.map((u) => u.id);
+  }
+}
+
 function openDeleteDialog(user) {
-  if (user.email === 'support@pvrge.com') return;
+  if (user.email === 'support@pvrge.com' || user.is_duty) return;
   userToDelete.value = user;
 }
 
@@ -67,6 +112,7 @@ async function confirmDeleteUser() {
       throw new Error(data.error || `Failed to delete user (HTTP ${res.status})`);
     }
 
+    selectedUserIds.value = selectedUserIds.value.filter((id) => id !== userToDelete.value.id);
     users.value = users.value.filter((u) => u.id !== userToDelete.value.id);
     totalCount.value = Math.max(0, totalCount.value - 1);
     userToDelete.value = null;
@@ -74,6 +120,89 @@ async function confirmDeleteUser() {
     error.value = err.message || 'Failed to delete user.';
   } finally {
     isDeleting.value = false;
+  }
+}
+
+async function confirmBulkDelete() {
+  if (selectedUserIds.value.length === 0) return;
+
+  if (!session.isDutyActive.value) {
+    error.value = 'Not authenticated. Please log in as an administrator.';
+    return;
+  }
+
+  isBulkDeleting.value = true;
+  try {
+    const res = await fetch('/api/admin/users/bulk-delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userIds: selectedUserIds.value }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Failed to delete users (HTTP ${res.status})`);
+    }
+
+    selectedUserIds.value = [];
+    isBulkDeleteDialogOpen.value = false;
+    await fetchUsers();
+  } catch (err) {
+    error.value = err.message || 'Failed to bulk delete users.';
+  } finally {
+    isBulkDeleting.value = false;
+  }
+}
+
+function openNewDutyModal() {
+  newDutyEmail.value = '';
+  newDutyPassword.value = '';
+  showDutyPassword.value = false;
+  dutyFormError.value = '';
+  isNewDutyModalOpen.value = true;
+}
+
+async function handleCreateDutyAccount() {
+  if (!newDutyEmail.value || !newDutyPassword.value) return;
+
+  if (newDutyPassword.value.length < 6) {
+    dutyFormError.value = 'Password must be at least 6 characters.';
+    return;
+  }
+
+  if (!session.isDutyActive.value) {
+    dutyFormError.value = 'Not authenticated. Please log in as an administrator.';
+    return;
+  }
+
+  isCreatingDuty.value = true;
+  dutyFormError.value = '';
+
+  try {
+    const res = await fetch('/api/duty/accounts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: newDutyEmail.value.trim().toLowerCase(),
+        password: newDutyPassword.value,
+      }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Failed to create duty account (HTTP ${res.status})`);
+    }
+
+    isNewDutyModalOpen.value = false;
+    await fetchUsers();
+  } catch (err) {
+    dutyFormError.value = err.message || 'Failed to create duty account.';
+  } finally {
+    isCreatingDuty.value = false;
   }
 }
 
@@ -160,7 +289,18 @@ onMounted(() => {
       </div>
 
       <!-- Kanan: Toolbar gabungan -->
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Delete Selected Button -->
+        <button
+          v-if="selectedUserIds.length > 0"
+          type="button"
+          @click="isBulkDeleteDialogOpen = true"
+          class="inline-flex items-center gap-1.5 rounded-md bg-rose-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-xs hover:bg-rose-700 focus:outline-none transition"
+        >
+          <Trash class="size-3.5" />
+          <span>Delete Selected ({{ selectedUserIds.length }})</span>
+        </button>
+
         <div class="relative w-full sm:w-64">
           <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-gray-400">
             <Search class="size-3.5" />
@@ -189,6 +329,15 @@ onMounted(() => {
         >
           <Refresh class="size-3.5" :class="{ 'animate-spin': isLoading }" />
           <span>Refresh</span>
+        </button>
+
+        <!-- New Duty Account Button -->
+        <button
+          type="button"
+          @click="openNewDutyModal"
+          class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-xs hover:bg-emerald-700 focus:outline-none transition"
+        >
+          <span>+ New Duty Account</span>
         </button>
       </div>
     </div>
@@ -220,6 +369,17 @@ onMounted(() => {
         <table class="min-w-full divide-y divide-gray-200 text-left text-sm dark:divide-gray-700/60">
           <thead class="bg-gray-50/80 dark:bg-gray-800/90 text-[11px] font-semibold uppercase text-gray-500 dark:text-gray-400">
             <tr>
+              <th scope="col" class="w-10 py-2.5 pl-4 pr-2">
+                <input
+                  type="checkbox"
+                  :checked="isAllSelected"
+                  :indeterminate.prop="isIndeterminate"
+                  :disabled="selectableUsers.length === 0"
+                  @change="toggleSelectAll"
+                  class="size-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label="Select all users"
+                />
+              </th>
               <th scope="col" class="py-2.5 px-4">User & Email</th>
               <th scope="col" class="hidden md:table-cell py-2.5 px-4">Account ID</th>
               <th scope="col" class="py-2.5 px-4 text-center">Messages</th>
@@ -230,7 +390,7 @@ onMounted(() => {
           <tbody class="divide-y divide-gray-200 dark:divide-gray-700/60 font-normal">
             <!-- Loading State -->
             <tr v-if="isLoading && users.length === 0">
-              <td colspan="5" class="py-12 text-center">
+              <td colspan="6" class="py-12 text-center">
                 <div class="flex flex-col items-center justify-center gap-2">
                   <Spinner class="size-5 animate-spin text-emerald-600 dark:text-emerald-400" />
                   <span class="text-xs text-gray-500 dark:text-gray-400">Loading registered users...</span>
@@ -240,7 +400,7 @@ onMounted(() => {
 
             <!-- Empty State -->
             <tr v-else-if="filteredUsers.length === 0">
-              <td colspan="5" class="py-12 text-center text-xs text-gray-500 dark:text-gray-400">
+              <td colspan="6" class="py-12 text-center text-xs text-gray-500 dark:text-gray-400">
                 <span v-if="searchQuery">No matching users found for "{{ searchQuery }}"</span>
                 <span v-else>No registered users found</span>
               </td>
@@ -253,6 +413,19 @@ onMounted(() => {
               :key="user.id"
               class="py-2.5 px-4 hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors"
             >
+              <!-- Checkbox Baris -->
+              <td class="w-10 py-2.5 pl-4 pr-2">
+                <input
+                  v-if="!user.is_duty && user.email !== 'support@pvrge.com'"
+                  type="checkbox"
+                  :value="user.id"
+                  v-model="selectedUserIds"
+                  class="size-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
+                  :aria-label="`Select user ${user.email}`"
+                />
+                <span v-else class="block size-4"></span>
+              </td>
+
               <!-- Kolom User & Email -->
               <td class="py-2.5 px-4">
                 <div class="flex items-center gap-2.5">
@@ -266,9 +439,15 @@ onMounted(() => {
                     {{ user.email }}
                   </span>
 
-                  <!-- Badge role (Admin / User) -->
+                  <!-- Badge role (Duty Desk / Admin / User) -->
                   <span
-                    v-if="user.email === 'support@pvrge.com'"
+                    v-if="user.is_duty === 1 || user.is_duty === true"
+                    class="inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                  >
+                    Duty Desk
+                  </span>
+                  <span
+                    v-else-if="user.email === 'support@pvrge.com'"
                     class="inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
                   >
                     Admin
@@ -333,7 +512,7 @@ onMounted(() => {
               <!-- Kolom Actions -->
               <td class="py-2.5 px-4 text-right whitespace-nowrap">
                 <button
-                  v-if="user.email !== 'support@pvrge.com'"
+                  v-if="user.email !== 'support@pvrge.com' && !user.is_duty"
                   type="button"
                   @click="openDeleteDialog(user)"
                   class="inline-flex items-center justify-center rounded p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 dark:hover:text-rose-400 transition"
@@ -349,12 +528,15 @@ onMounted(() => {
       </div>
 
       <!-- Summary Footer Card -->
-      <div class="px-4 py-2 border-t border-gray-200 dark:border-gray-700/60 text-xs text-gray-500 dark:text-gray-400">
-        Showing {{ filteredUsers.length }} of {{ users.length }} users
+      <div class="px-4 py-2 border-t border-gray-200 dark:border-gray-700/60 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
+        <span>Showing {{ filteredUsers.length }} of {{ users.length }} users</span>
+        <span v-if="selectedUserIds.length > 0" class="text-emerald-600 dark:text-emerald-400 font-medium">
+          {{ selectedUserIds.length }} user(s) selected
+        </span>
       </div>
     </div>
 
-    <!-- Confirm Delete Dialog -->
+    <!-- Confirm Single Delete Dialog -->
     <AlertDialog :open="!!userToDelete" @update:open="(open) => { if (!open) userToDelete = null; }">
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -376,5 +558,102 @@ onMounted(() => {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    <!-- Confirm Bulk Delete Dialog -->
+    <AlertDialog :open="isBulkDeleteDialogOpen" @update:open="(open) => { if (!open) isBulkDeleteDialogOpen = false; }">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Selected Users</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete <span class="font-semibold text-gray-900 dark:text-white">{{ selectedUserIds.length }}</span> selected user(s)? All messages and attachments associated with these accounts will be permanently deleted. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="isBulkDeleting">Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            @click="confirmBulkDelete"
+            :disabled="isBulkDeleting"
+            class="bg-rose-600 hover:bg-rose-700 text-white"
+          >
+            <Spinner v-if="isBulkDeleting" class="size-3.5 animate-spin mr-1.5" />
+            {{ isBulkDeleting ? 'Deleting...' : 'Delete Selected' }}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <!-- New Duty Account Modal -->
+    <Dialog :open="isNewDutyModalOpen" @update:open="(open) => { if (!open) isNewDutyModalOpen = false; }">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>New Duty Account</DialogTitle>
+          <DialogDescription>
+            Create a new duty desk account with elevated management privileges.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form @submit.prevent="handleCreateDutyAccount" class="space-y-4 py-2">
+          <div
+            v-if="dutyFormError"
+            class="rounded-md bg-rose-50 p-2.5 text-xs text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200 dark:border-rose-900"
+          >
+            {{ dutyFormError }}
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">Email Address</label>
+            <input
+              v-model="newDutyEmail"
+              type="email"
+              required
+              placeholder="name@pvrge.com"
+              class="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500"
+            />
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">Password</label>
+            <div class="relative">
+              <input
+                v-model="newDutyPassword"
+                :type="showDutyPassword ? 'text' : 'password'"
+                required
+                minlength="6"
+                placeholder="At least 6 characters"
+                class="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-9 text-xs text-gray-900 placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500"
+              />
+              <button
+                type="button"
+                @click="showDutyPassword = !showDutyPassword"
+                class="absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                tabindex="-1"
+              >
+                <EyeSlash v-if="showDutyPassword" class="size-3.5" />
+                <Eye v-else class="size-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <DialogFooter class="pt-2">
+            <button
+              type="button"
+              @click="isNewDutyModalOpen = false"
+              :disabled="isCreatingDuty"
+              class="rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              :disabled="isCreatingDuty"
+              class="inline-flex items-center justify-center rounded-md bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700 focus:outline-none disabled:opacity-60 transition"
+            >
+              <Spinner v-if="isCreatingDuty" class="size-3.5 animate-spin mr-1.5" />
+              {{ isCreatingDuty ? 'Creating...' : 'Create Account' }}
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

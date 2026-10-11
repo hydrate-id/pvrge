@@ -6,14 +6,8 @@ export async function scheduled(
   ctx: ExecutionContext
 ): Promise<void> {
   const expired = await env.DB.prepare(
-    `SELECT m.id, m.raw_r2_key, m.attachments_json 
-     FROM messages m
-     JOIN accounts a ON m.account_id = a.id
-     WHERE a.email != 'support@pvrge.com'
-       AND m.expires_at IS NOT NULL
-       AND m.expires_at <= datetime('now')
-     LIMIT 100;`
-  ).all<{ id: string; raw_r2_key: string | null; attachments_json: string | null }>();
+    `SELECT id, raw_r2_key, attachments_json FROM messages WHERE expires_at IS NOT NULL AND expires_at <= ? AND account_id NOT IN (SELECT id FROM accounts WHERE email IN (SELECT email FROM duty_accounts)) LIMIT 100;`
+  ).bind(new Date().toISOString()).all<{ id: string; raw_r2_key: string | null; attachments_json: string | null }>();
 
   if (!expired.results || expired.results.length === 0) {
     return;

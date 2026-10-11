@@ -23,6 +23,11 @@ import Trash from '@primeicons/vue/trash';
 import Times from '@primeicons/vue/times';
 import CheckCircle from '@primeicons/vue/check-circle';
 import Envelope from '@primeicons/vue/envelope';
+import Key from '@primeicons/vue/key';
+import Eye from '@primeicons/vue/eye';
+import EyeSlash from '@primeicons/vue/eye-slash';
+import Spinner from '@primeicons/vue/spinner';
+import ExclamationCircle from '@primeicons/vue/exclamation-circle';
 
 const route = useRoute();
 const router = useRouter();
@@ -35,11 +40,10 @@ const isOnDuty = computed(() => isDutyActive.value || route.path.startsWith('/on
 const activeAccount = session.activeAccount;
 const accounts = session.accounts;
 
-function handleExitDuty() {
-  session.logoutDuty();
+async function handleExitDuty() {
   isDropdownOpen.value = false;
-  router.push('/');
-  session.initSession();
+  await session.logoutDuty();
+  router.push('/onduty/login');
 }
 
 function handleCopyEmail() {
@@ -145,6 +149,84 @@ async function handleLogoutAccount() {
 }
 
 const showDeleteAccountDialog = ref(false);
+
+const showChangeDutyPasswordModal = ref(false);
+const dutyCurrentPassword = ref('');
+const dutyNewPassword = ref('');
+const dutyConfirmPassword = ref('');
+const showDutyCurrentPassword = ref(false);
+const showDutyNewPassword = ref(false);
+const showDutyConfirmPassword = ref(false);
+const dutyPasswordError = ref('');
+const dutyPasswordSubmitting = ref(false);
+
+function openChangeDutyPasswordModal() {
+  isDropdownOpen.value = false;
+  dutyCurrentPassword.value = '';
+  dutyNewPassword.value = '';
+  dutyConfirmPassword.value = '';
+  showDutyCurrentPassword.value = false;
+  showDutyNewPassword.value = false;
+  showDutyConfirmPassword.value = false;
+  dutyPasswordError.value = '';
+  showChangeDutyPasswordModal.value = true;
+}
+
+function closeChangeDutyPasswordModal() {
+  showChangeDutyPasswordModal.value = false;
+  dutyCurrentPassword.value = '';
+  dutyNewPassword.value = '';
+  dutyConfirmPassword.value = '';
+  dutyPasswordError.value = '';
+  showDutyCurrentPassword.value = false;
+  showDutyNewPassword.value = false;
+  showDutyConfirmPassword.value = false;
+}
+
+async function handleChangeDutyPassword() {
+  dutyPasswordError.value = '';
+  if (!dutyCurrentPassword.value) {
+    dutyPasswordError.value = 'Current password is required';
+    return;
+  }
+  if (!dutyNewPassword.value) {
+    dutyPasswordError.value = 'New password is required';
+    return;
+  }
+  if (dutyNewPassword.value.length < 6) {
+    dutyPasswordError.value = 'New password must be at least 6 characters';
+    return;
+  }
+  if (dutyNewPassword.value !== dutyConfirmPassword.value) {
+    dutyPasswordError.value = 'New passwords do not match';
+    return;
+  }
+
+  dutyPasswordSubmitting.value = true;
+  try {
+    const res = await fetch('/api/duty/change-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        currentPassword: dutyCurrentPassword.value,
+        newPassword: dutyNewPassword.value,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) {
+      throw new Error(data.error || `Failed to change password (HTTP ${res.status})`);
+    }
+
+    closeChangeDutyPasswordModal();
+  } catch (err) {
+    dutyPasswordError.value = err.message || 'Failed to change password';
+  } finally {
+    dutyPasswordSubmitting.value = false;
+  }
+}
 
 function handleDeleteCurrentAccount() {
   isDropdownOpen.value = false;
@@ -517,6 +599,17 @@ onUnmounted(() => {
 
                   <!-- Group 3: Menu Aksi Akun -->
                   <div class="p-1 isolate max-h-96 overflow-y-auto space-y-0.5">
+                    <!-- Change Duty Password -->
+                    <button
+                      v-if="isOnDuty"
+                      type="button"
+                      @click="openChangeDutyPasswordModal"
+                      class="w-full flex items-center select-none outline-none rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-950/30 p-1.5 text-sm gap-2 text-emerald-600 dark:text-emerald-400 transition-colors text-left"
+                    >
+                      <Key class="text-sm shrink-0" />
+                      <span class="truncate font-medium">Change password</span>
+                    </button>
+
                     <!-- Create an account -->
                     <button
                       v-if="!isOnDuty"
@@ -631,5 +724,140 @@ onUnmounted(() => {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    <!-- Change Duty Password Modal -->
+    <div
+      v-if="showChangeDutyPasswordModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    >
+      <div class="relative w-full max-w-md p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700">
+        <!-- Close button -->
+        <button
+          type="button"
+          @click="closeChangeDutyPasswordModal"
+          class="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg transition"
+          aria-label="Close modal"
+        >
+          <Times class="size-4" />
+        </button>
+
+        <!-- Header -->
+        <div class="flex items-center gap-2 border-b border-gray-200 dark:border-gray-700 pb-3 mb-5">
+          <Key class="size-5 text-emerald-600 dark:text-emerald-400" />
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+            Change Duty Password
+          </h2>
+        </div>
+
+        <!-- Error alert -->
+        <div
+          v-if="dutyPasswordError"
+          class="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs rounded-lg flex items-center gap-2"
+        >
+          <ExclamationCircle class="size-4 shrink-0" />
+          <span>{{ dutyPasswordError }}</span>
+        </div>
+
+        <!-- Form -->
+        <form @submit.prevent="handleChangeDutyPassword" class="space-y-4">
+          <!-- Current Password -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+              Current Password
+            </label>
+            <div class="relative">
+              <input
+                v-model="dutyCurrentPassword"
+                :type="showDutyCurrentPassword ? 'text' : 'password'"
+                required
+                placeholder="Enter current duty password"
+                class="w-full pl-3.5 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+              />
+              <button
+                type="button"
+                @click="showDutyCurrentPassword = !showDutyCurrentPassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none transition cursor-pointer"
+                tabindex="-1"
+                :title="showDutyCurrentPassword ? 'Hide password' : 'Show password'"
+              >
+                <EyeSlash v-if="showDutyCurrentPassword" class="size-4" />
+                <Eye v-else class="size-4" />
+              </button>
+            </div>
+          </div>
+
+          <!-- New Password -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+              New Password
+            </label>
+            <div class="relative">
+              <input
+                v-model="dutyNewPassword"
+                :type="showDutyNewPassword ? 'text' : 'password'"
+                required
+                placeholder="Enter new password (min. 6 characters)"
+                class="w-full pl-3.5 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+              />
+              <button
+                type="button"
+                @click="showDutyNewPassword = !showDutyNewPassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none transition cursor-pointer"
+                tabindex="-1"
+                :title="showDutyNewPassword ? 'Hide password' : 'Show password'"
+              >
+                <EyeSlash v-if="showDutyNewPassword" class="size-4" />
+                <Eye v-else class="size-4" />
+              </button>
+            </div>
+          </div>
+
+          <!-- Confirm New Password -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+              Confirm New Password
+            </label>
+            <div class="relative">
+              <input
+                v-model="dutyConfirmPassword"
+                :type="showDutyConfirmPassword ? 'text' : 'password'"
+                required
+                placeholder="Confirm new password"
+                class="w-full pl-3.5 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+              />
+              <button
+                type="button"
+                @click="showDutyConfirmPassword = !showDutyConfirmPassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none transition cursor-pointer"
+                tabindex="-1"
+                :title="showDutyConfirmPassword ? 'Hide password' : 'Show password'"
+              >
+                <EyeSlash v-if="showDutyConfirmPassword" class="size-4" />
+                <Eye v-else class="size-4" />
+              </button>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="pt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              @click="closeChangeDutyPasswordModal"
+              class="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              :disabled="dutyPasswordSubmitting"
+              class="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50 shadow-sm cursor-pointer"
+            >
+              <Spinner v-if="dutyPasswordSubmitting" class="size-4 animate-spin" />
+              <span>Update Password</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
