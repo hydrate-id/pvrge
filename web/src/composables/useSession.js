@@ -234,6 +234,19 @@ export function useSession() {
     }
   }
 
+  async function logoutAccount(id = activeAccountId.value) {
+    if (!id) return;
+    accounts.value = accounts.value.filter((a) => a.id !== id);
+    saveSessionsToStorage();
+
+    if (accounts.value.length > 0) {
+      activeAccountId.value = accounts.value[0].id;
+    } else {
+      activeAccountId.value = null;
+      await createAccount();
+    }
+  }
+
   async function deleteAccount(id = null) {
     const targetId = id || activeAccountId.value;
     if (!targetId) return;
@@ -313,6 +326,7 @@ export function useSession() {
     createAccount,
     loginAccount,
     switchAccount,
+    logoutAccount,
     deleteAccount,
     fetchDomains,
   };
