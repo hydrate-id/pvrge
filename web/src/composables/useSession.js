@@ -2,18 +2,27 @@ import { ref, computed } from 'vue';
 
 const STORAGE_KEY = 'pvrge_sessions';
 
+const isDutyActive = ref(false);
 const dutySession = ref(null);
-function loadDutySession() {
+
+async function checkDutySession() {
   try {
-    const raw = localStorage.getItem('pvrge_duty_session');
-    dutySession.value = raw ? JSON.parse(raw) : null;
+    const res = await fetch('/api/duty/me');
+    if (res.status === 200) {
+      isDutyActive.value = true;
+      dutySession.value = { account: { email: 'support@pvrge.com' } };
+      return true;
+    } else {
+      isDutyActive.value = false;
+      dutySession.value = null;
+      return false;
+    }
   } catch (e) {
+    isDutyActive.value = false;
     dutySession.value = null;
+    return false;
   }
 }
-loadDutySession();
-
-const isDutyActive = computed(() => Boolean(dutySession.value?.token && dutySession.value?.account?.email === 'support@pvrge.com'));
 
 async function loginDuty(password) {
   isLoading.value = true;
@@ -26,18 +35,26 @@ async function loginDuty(password) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Invalid admin credentials');
-    const sessionData = { token: data.token, account: data.account };
-    localStorage.setItem('pvrge_duty_session', JSON.stringify(sessionData));
-    dutySession.value = sessionData;
-    return sessionData;
+    isDutyActive.value = true;
+    dutySession.value = { account: data.account || { email: 'support@pvrge.com' } };
+    return data;
   } finally {
     isLoading.value = false;
   }
 }
 
-function logoutDuty() {
-  localStorage.removeItem('pvrge_duty_session');
-  dutySession.value = null;
+async function logoutDuty() {
+  isLoading.value = true;
+  error.value = null;
+  try {
+    await fetch('/api/auth/duty-logout', { method: 'POST' });
+  } catch (e) {
+    console.warn('Duty logout request failed:', e);
+  } finally {
+    isDutyActive.value = false;
+    dutySession.value = null;
+    isLoading.value = false;
+  }
   loadSessionsFromStorage();
   if (accounts.value.length > 0 && !activeAccountId.value) {
     activeAccountId.value = accounts.value[0].id;
@@ -92,7 +109,13 @@ function loadSessionsFromStorage() {
     if (raw) {
       const data = JSON.parse(raw);
       if (Array.isArray(data.accounts)) {
-        accounts.value = data.accounts;
+        // Only keep metadata: { id, email, password, createdAt }
+        accounts.value = data.accounts.map((acc) => ({
+          id: acc.id,
+          email: acc.email,
+          password: acc.password,
+          createdAt: acc.createdAt || acc.created_at,
+        }));
       }
       if (data.activeAccountId) {
         activeAccountId.value = data.activeAccountId;
@@ -105,13 +128,249 @@ function loadSessionsFromStorage() {
 
 function saveSessionsToStorage() {
   try {
+    const cleanedAccounts = accounts.value.map((acc) => ({
+      id: acc.id,
+      email: acc.email,
+      password: acc.password,
+      createdAt: acc.createdAt,
+    }));
     const data = {
-      accounts: accounts.value,
+      accounts: cleanedAccounts,
       activeAccountId: activeAccountId.value,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (e) {
     console.error('Failed to save sessions to localStorage:', e);
+  }
+}
+
+async function switchAccount(id) {
+  isLoading.value = true;
+  error.value = null;
+  try {
+    const res = await fetch('/api/auth/switch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ accountId: id }),
+    });
+
+    if (handleResponseStatus(res)) {
+      throw new Error('Rate limit reached.');
+    }
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to switch account');
+    }
+
+    activeAccountId.value = id;
+    saveSessionsToStorage();
+    return data;
+  } catch (err) {
+    error.value = err.message;
+    throw err;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+async function createAccount(custom = {}) {
+  isLoading.value = true;
+  error.value = null;
+  try {
+    const payload = {};
+    if (custom.username) payload.username = custom.username;
+    if (custom.domain) payload.domain = custom.domain;
+    if (custom.password) payload.password = custom.password;
+
+    const res = await fetch('/api/accounts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (handleResponseStatus(res, 'Account creation rate limited. Please try again later.')) {
+      throw new Error('Rate limit reached. Please wait before creating an account.');
+    }
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to create account');
+    }
+
+    const account = data.account || data;
+    const newAccount = {
+      id: account.id,
+      email: account.email,
+      password: account.password || custom.password,
+      createdAt: account.created_at || account.createdAt || new Date().toISOString(),
+    };
+
+    const existingIdx = accounts.value.findIndex((a) => a.id === newAccount.id);
+    if (existingIdx !== -1) {
+      accounts.value[existingIdx] = newAccount;
+    } else {
+      accounts.value.unshift(newAccount);
+    }
+
+    activeAccountId.value = newAccount.id;
+    saveSessionsToStorage();
+    return newAccount;
+  } catch (err) {
+    error.value = err.message;
+    throw err;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+async function loginAccount({ email, password }) {
+  if (email && email.trim().toLowerCase() === 'support@pvrge.com') {
+    throw new Error('Invalid email or password');
+  }
+
+  isLoading.value = true;
+  error.value = null;
+  try {
+    const res = await fetch('/api/auth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (handleResponseStatus(res, 'Login rate limited. Please try again later.')) {
+      throw new Error('Rate limit reached. Please wait before logging in.');
+    }
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Invalid credentials');
+    }
+
+    const account = data.account || data;
+    const newAccount = {
+      id: account.id,
+      email: account.email,
+      password,
+      createdAt: account.created_at || account.createdAt || new Date().toISOString(),
+    };
+
+    const existingIdx = accounts.value.findIndex((a) => a.id === newAccount.id);
+    if (existingIdx !== -1) {
+      accounts.value[existingIdx] = { ...accounts.value[existingIdx], ...newAccount };
+    } else {
+      accounts.value.unshift(newAccount);
+    }
+
+    activeAccountId.value = newAccount.id;
+    saveSessionsToStorage();
+    return newAccount;
+  } catch (err) {
+    error.value = err.message;
+    throw err;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+async function logoutAccount(id = activeAccountId.value) {
+  isLoading.value = true;
+  error.value = null;
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' });
+  } catch (e) {
+    console.warn('Logout request failed:', e);
+  } finally {
+    isLoading.value = false;
+  }
+
+  if (id) {
+    accounts.value = accounts.value.filter((a) => a.id !== id);
+  }
+  saveSessionsToStorage();
+
+  if (accounts.value.length > 0) {
+    await switchAccount(accounts.value[0].id);
+  } else {
+    activeAccountId.value = null;
+    await createAccount();
+  }
+}
+
+async function deleteAccount(id = null) {
+  const targetId = id || activeAccountId.value;
+  if (!targetId) return;
+
+  try {
+    const res = await fetch('/api/accounts/me', {
+      method: 'DELETE',
+    });
+    handleResponseStatus(res);
+  } catch (e) {
+    console.warn('Backend delete request failed:', e);
+  }
+
+  accounts.value = accounts.value.filter((a) => a.id !== targetId);
+
+  if (accounts.value.length > 0) {
+    await switchAccount(accounts.value[0].id);
+  } else {
+    activeAccountId.value = null;
+    saveSessionsToStorage();
+    await createAccount();
+  }
+}
+
+async function initSession() {
+  loadSessionsFromStorage();
+  await checkDutySession();
+  if (isDutyActive.value) return;
+
+  try {
+    const res = await fetch('/api/accounts/me');
+    if (res.status === 200) {
+      const data = await res.json();
+      activeAccountId.value = data.account.id;
+      const exists = accounts.value.some((a) => a.id === data.account.id);
+      if (!exists) {
+        accounts.value.push({
+          id: data.account.id,
+          email: data.account.email,
+          createdAt: data.account.created_at,
+        });
+      }
+      saveSessionsToStorage();
+    } else {
+      if (accounts.value.length > 0) {
+        await switchAccount(accounts.value[0].id);
+      } else {
+        await createAccount();
+      }
+    }
+  } catch (e) {
+    if (accounts.value.length > 0) {
+      await switchAccount(accounts.value[0].id);
+    } else {
+      await createAccount();
+    }
+  }
+}
+
+async function fetchDomains() {
+  try {
+    const res = await fetch('/api/domains');
+    if (handleResponseStatus(res)) return [];
+    const data = await res.json();
+    return data.domains || [];
+  } catch (e) {
+    console.warn('Failed to fetch domains:', e);
+    return [];
   }
 }
 
@@ -124,194 +383,12 @@ export function useSession() {
     storageBytes.value = bytes || 0;
   }
 
-  async function createAccount(custom = {}) {
-    isLoading.value = true;
-    error.value = null;
-    try {
-      const payload = {};
-      if (custom.username) payload.username = custom.username;
-      if (custom.domain) payload.domain = custom.domain;
-      if (custom.password) payload.password = custom.password;
-
-      const res = await fetch('/api/accounts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (handleResponseStatus(res, 'Account creation rate limited. Please try again later.')) {
-        throw new Error('Rate limit reached. Please wait before creating an account.');
-      }
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to create account');
-      }
-
-      const newAccount = {
-        id: data.id,
-        email: data.email,
-        password: data.password,
-        token: data.token,
-      };
-
-      // Add to accounts or update
-      const existingIdx = accounts.value.findIndex((a) => a.id === newAccount.id);
-      if (existingIdx !== -1) {
-        accounts.value[existingIdx] = newAccount;
-      } else {
-        accounts.value.unshift(newAccount);
-      }
-
-      activeAccountId.value = newAccount.id;
-      saveSessionsToStorage();
-      return newAccount;
-    } catch (err) {
-      error.value = err.message;
-      throw err;
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  async function loginAccount({ email, password }) {
-    if (email && email.trim().toLowerCase() === 'support@pvrge.com') {
-      throw new Error('Invalid email or password');
-    }
-
-    isLoading.value = true;
-    error.value = null;
-    try {
-      const res = await fetch('/api/auth/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (handleResponseStatus(res, 'Login rate limited. Please try again later.')) {
-        throw new Error('Rate limit reached. Please wait before logging in.');
-      }
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Invalid credentials');
-      }
-
-      const loggedIn = {
-        id: data.account.id,
-        email: data.account.email,
-        password,
-        token: data.token,
-      };
-
-      const existingIdx = accounts.value.findIndex((a) => a.id === loggedIn.id);
-      if (existingIdx !== -1) {
-        accounts.value[existingIdx] = loggedIn;
-      } else {
-        accounts.value.unshift(loggedIn);
-      }
-
-      activeAccountId.value = loggedIn.id;
-      saveSessionsToStorage();
-      return loggedIn;
-    } catch (err) {
-      error.value = err.message;
-      throw err;
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  function switchAccount(id) {
-    const target = accounts.value.find((a) => a.id === id);
-    if (target) {
-      activeAccountId.value = target.id;
-      saveSessionsToStorage();
-    }
-  }
-
-  async function logoutAccount(id = activeAccountId.value) {
-    if (!id) return;
-    accounts.value = accounts.value.filter((a) => a.id !== id);
-    saveSessionsToStorage();
-
-    if (accounts.value.length > 0) {
-      activeAccountId.value = accounts.value[0].id;
-    } else {
-      activeAccountId.value = null;
-      await createAccount();
-    }
-  }
-
-  async function deleteAccount(id = null) {
-    const targetId = id || activeAccountId.value;
-    if (!targetId) return;
-
-    const targetAccount = accounts.value.find((a) => a.id === targetId);
-    if (targetAccount?.token) {
-      try {
-        const res = await fetch('/api/accounts/me', {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${targetAccount.token}`,
-          },
-        });
-        handleResponseStatus(res);
-      } catch (e) {
-        console.warn('Backend delete request failed:', e);
-      }
-    }
-
-    accounts.value = accounts.value.filter((a) => a.id !== targetId);
-
-    if (accounts.value.length > 0) {
-      activeAccountId.value = accounts.value[0].id;
-      saveSessionsToStorage();
-    } else {
-      activeAccountId.value = null;
-      saveSessionsToStorage();
-      // Auto-create new account as requested
-      await createAccount();
-    }
-  }
-
-  async function initSession() {
-    if (isDutyActive.value) return;
-    loadSessionsFromStorage();
-
-    // If active account exists but is not in accounts list
-    if (activeAccountId.value && !accounts.value.find((a) => a.id === activeAccountId.value)) {
-      activeAccountId.value = accounts.value.length > 0 ? accounts.value[0].id : null;
-    }
-
-    // If no accounts yet, auto-generate first account
-    if (accounts.value.length === 0 || !activeAccountId.value) {
-      await createAccount();
-    }
-  }
-
-  async function fetchDomains() {
-    try {
-      const res = await fetch('/api/domains');
-      if (handleResponseStatus(res)) return [];
-      const data = await res.json();
-      return data.domains || [];
-    } catch (e) {
-      console.warn('Failed to fetch domains:', e);
-      return [];
-    }
-  }
-
   return {
     dutySession,
     isDutyActive,
+    checkDutySession,
     loginDuty,
     logoutDuty,
-    loadDutySession,
     accounts,
     activeAccountId,
     activeAccount,
@@ -332,4 +409,17 @@ export function useSession() {
   };
 }
 
-export { dutySession, isDutyActive, loginDuty, logoutDuty, loadDutySession, rateLimitState, triggerRateLimit, handleResponseStatus };
+export {
+  dutySession,
+  isDutyActive,
+  checkDutySession,
+  loginDuty,
+  logoutDuty,
+  accounts,
+  activeAccountId,
+  switchAccount,
+  logoutAccount,
+  rateLimitState,
+  triggerRateLimit,
+  handleResponseStatus,
+};

@@ -41,11 +41,11 @@ const currentAccount = computed(() => {
   return activeAccount.value;
 });
 
-const currentToken = computed(() => {
+const isAuthenticated = computed(() => {
   if (routePrefix.value === '/onduty') {
-    return dutySession.value?.token;
+    return session.isDutyActive.value;
   }
-  return activeAccount.value?.token;
+  return Boolean(activeAccount.value?.id);
 });
 
 const messages = ref([]);
@@ -207,16 +207,11 @@ function formatBytes(bytes) {
 async function fetchMessages(quiet = false) {
   if (rateLimitState.value.isLimited) return;
 
-  const token = currentToken.value;
-  if (!token) return;
+  if (!isAuthenticated.value) return;
 
   if (!quiet) isLoadingList.value = true;
   try {
-    const res = await fetch('/api/messages', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const res = await fetch('/api/messages');
     if (res.status === 429) {
       handleResponseStatus(res, 'Polling rate limit reached. Auto-refresh paused.');
       return;
@@ -267,16 +262,11 @@ async function fetchMessages(quiet = false) {
 }
 
 async function fetchMessageDetail(id) {
-  const token = currentToken.value;
-  if (!token || !id) return;
+  if (!isAuthenticated.value || !id) return;
 
   isLoadingDetail.value = true;
   try {
-    const res = await fetch(`/api/messages/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const res = await fetch(`/api/messages/${id}`);
     if (!res.ok) throw new Error('Failed to fetch message detail');
     const data = await res.json();
     selectedMessageDetail.value = {
@@ -294,16 +284,11 @@ async function fetchMessageDetail(id) {
 }
 
 async function fetchSource(id) {
-  const token = currentToken.value;
-  if (!token || !id) return;
+  if (!isAuthenticated.value || !id) return;
 
   isLoadingDetail.value = true;
   try {
-    const res = await fetch(`/api/messages/${id}/source`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const res = await fetch(`/api/messages/${id}/source`);
     if (res.ok) {
       rawSourceText.value = await res.text();
     }
@@ -315,9 +300,9 @@ async function fetchSource(id) {
 }
 
 watch(
-  [() => route.params.id, () => currentToken.value, () => route.path],
-  async ([id, token, path]) => {
-    if (!id || !token) {
+  [() => route.params.id, () => isAuthenticated.value, () => route.path],
+  async ([id, authenticated, path]) => {
+    if (!id || !authenticated) {
       selectedMessageDetail.value = null;
       rawSourceText.value = '';
       return;
@@ -429,16 +414,15 @@ function deleteSelectedMessage() {
 }
 
 async function confirmDeleteMessage() {
-  const token = currentToken.value;
   const id = selectedMessageId.value;
-  if (!token || !id || isDeleting.value) return;
+  if (!isAuthenticated.value || !id || isDeleting.value) return;
 
   isDeleting.value = true;
   try {
     const res = await fetch(`/api/messages/${id}`, {
       method: 'DELETE',
       headers: {
-        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
     });
     if (!res.ok) throw new Error('Failed to delete message');
@@ -461,17 +445,12 @@ async function confirmDeleteMessage() {
 }
 
 async function downloadAttachment(att) {
-  const token = currentToken.value;
   const msgId = selectedMessageId.value;
-  if (!token || !msgId || !att?.id) return;
+  if (!isAuthenticated.value || !msgId || !att?.id) return;
 
   isDownloadingAttachment.value[att.id] = true;
   try {
-    const res = await fetch(`/api/messages/${msgId}/attachments/${att.id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const res = await fetch(`/api/messages/${msgId}/attachments/${att.id}`);
     if (!res.ok) throw new Error('Download failed');
 
     const blob = await res.blob();
@@ -615,7 +594,7 @@ function scheduleNextPoll() {
     ? (rateLimitState.value.retryAfter + 1) * 1000
     : (document.visibilityState === 'visible' ? 4000 : 30000);
   pollTimer = setTimeout(async () => {
-    if (currentToken.value) {
+    if (isAuthenticated.value) {
       await fetchMessages(true);
     }
     scheduleNextPoll();
@@ -625,7 +604,7 @@ function scheduleNextPoll() {
 watch(
   () => rateLimitState.value.isLimited,
   (limited) => {
-    if (!limited && currentToken.value) {
+    if (!limited && isAuthenticated.value) {
       scheduleNextPoll();
     }
   }
@@ -644,7 +623,7 @@ function handleExternalRefresh() {
 }
 
 watch(
-  () => (routePrefix.value === '/onduty' ? dutySession.value?.token : session.activeAccountId.value),
+  () => (routePrefix.value === '/onduty' ? session.isDutyActive.value : session.activeAccountId.value),
   (newVal, oldVal) => {
     if (newVal === oldVal) return;
     selectedMessageDetail.value = null;
@@ -657,7 +636,7 @@ watch(
     if (oldVal !== undefined && route.params.id) {
       router.push(routePrefix.value || '/');
     }
-    if (currentToken.value) {
+    if (isAuthenticated.value) {
       fetchMessages(false);
     } else {
       messages.value = [];
@@ -670,7 +649,7 @@ onMounted(() => {
   if (typeof document !== 'undefined') {
     defaultTitle.value = document.title;
   }
-  if (currentToken.value) {
+  if (isAuthenticated.value) {
     fetchMessages(false);
   }
   scheduleNextPoll();

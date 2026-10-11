@@ -24,7 +24,6 @@ import {
 
 const router = useRouter();
 const session = useSession();
-const { activeAccount, dutySession } = session;
 
 const users = ref([]);
 const totalCount = ref(0);
@@ -49,8 +48,7 @@ function openDeleteDialog(user) {
 async function confirmDeleteUser() {
   if (!userToDelete.value) return;
 
-  const token = dutySession?.value?.token || activeAccount.value?.token;
-  if (!token) {
+  if (!session.isDutyActive.value) {
     error.value = 'Not authenticated. Please log in as an administrator.';
     return;
   }
@@ -60,7 +58,7 @@ async function confirmDeleteUser() {
     const res = await fetch(`/api/admin/users/${userToDelete.value.id}`, {
       method: 'DELETE',
       headers: {
-        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
     });
 
@@ -109,8 +107,7 @@ async function handleCopy(text, id) {
 }
 
 async function fetchUsers() {
-  const token = dutySession?.value?.token || activeAccount.value?.token;
-  if (!token) {
+  if (!session.isDutyActive.value) {
     error.value = 'Not authenticated. Please log in as an administrator.';
     return;
   }
@@ -119,11 +116,7 @@ async function fetchUsers() {
   error.value = null;
 
   try {
-    const res = await fetch('/api/admin/users', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const res = await fetch('/api/admin/users');
 
     if (res.status === 401 || res.status === 403) {
       error.value = 'Admin privileges required. Access denied.';
@@ -213,7 +206,7 @@ onMounted(() => {
         <span class="font-medium">{{ error }}</span>
       </div>
       <router-link
-        v-if="!(dutySession?.value?.token || activeAccount?.value?.token) || error.includes('Admin')"
+        v-if="!session.isDutyActive.value || error.includes('Admin')"
         to="/onduty/login"
         class="font-semibold text-rose-900 underline hover:text-rose-700 dark:text-rose-200"
       >

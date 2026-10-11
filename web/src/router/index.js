@@ -6,6 +6,7 @@ import TermsView from '../views/TermsView.vue';
 import ContactView from '../views/ContactView.vue';
 import AdminLoginView from '../views/AdminLoginView.vue';
 import AdminUsersView from '../views/AdminUsersView.vue';
+import { useSession } from '../composables/useSession';
 
 const routes = [
   { path: '/', name: 'inbox', component: InboxView },
@@ -31,19 +32,12 @@ export const router = createRouter({
   },
 });
 
-function isDutyAuthenticated() {
-  const duty = localStorage.getItem('pvrge_duty_session');
-  if (!duty) return false;
-  try {
-    const parsed = JSON.parse(duty);
-    return Boolean(parsed?.token && parsed?.account?.email === 'support@pvrge.com');
-  } catch {
-    return false;
+router.beforeEach(async (to, from, next) => {
+  const session = useSession();
+  if (to.path.startsWith('/onduty')) {
+    await session.checkDutySession();
   }
-}
-
-router.beforeEach((to, from, next) => {
-  const dutyActive = isDutyAuthenticated();
+  const dutyActive = session.isDutyActive.value;
   if (dutyActive) {
     if (to.path === '/' || to.path.startsWith('/view/') || to.path === '/onduty/login') {
       return next('/onduty');
