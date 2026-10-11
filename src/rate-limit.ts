@@ -1,3 +1,5 @@
+import type { Env } from "./types";
+
 /**
  * In-memory sliding window rate limiter and IP utilities.
  * Designed for Cloudflare Workers / V8 isolates with minimal CPU overhead (< 0.05ms)
@@ -33,6 +35,33 @@ export interface RateLimitResult {
   retryAfter: number;
 }
 
+export function isRateLimitBypassed(env?: Env, request?: Request): boolean {
+  if (!env) return false;
+  const isDevFlag = env.ENVIRONMENT === "development" || env.DISABLE_RATE_LIMIT === "true";
+  if (!isDevFlag) return false;
+
+  // Double-Lock: Wajib berjalan pada Hostname & IP Lokal/Private
+  if (request) {
+    const url = new URL(request.url);
+    const hostname = url.hostname;
+    const isLocalHost =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname === "[::1]" ||
+      hostname.startsWith("192.168.") ||
+      hostname.startsWith("10.") ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname);
+
+    // Jika hostname BUKAN local/LAN, TOLAK bypass secara mutlak (Fail-Closed)
+    if (!isLocalHost) {
+      console.warn(`[SECURITY] Rate limit bypass rejected: domain '${hostname}' is not a local environment!`);
+      return false;
+    }
+  }
+  return true;
+}
+
 /**
  * Check rate limit for a given key using an in-memory window.
  * Returns allowed status, remaining requests, and retry-after in seconds.
@@ -40,8 +69,14 @@ export interface RateLimitResult {
 export function checkRateLimit(
   key: string,
   maxRequests: number,
-  windowSeconds: number
+  windowSeconds: number,
+  env?: Env,
+  request?: Request
 ): RateLimitResult {
+  if (isRateLimitBypassed(env, request)) {
+    return { allowed: true, count: 0, remaining: 999, resetAt: 0, retryAfter: 0 };
+  }
+
   const now = Date.now();
   pruneExpired(now);
 
@@ -75,7 +110,15 @@ export function checkRateLimit(
 /**
  * Check if an IP is currently blocked due to repeated failed logins (>= 5 in 15 mins).
  */
-export function isLoginBlocked(ip: string): { blocked: boolean; retryAfter: number } {
+export function isLoginBlocked(
+  ip: string,
+  env?: Env,
+  request?: Request
+): { blocked: boolean; retryAfter: number } {
+  if (isRateLimitBypassed(env, request)) {
+    return { blocked: false, retryAfter: 0 };
+  }
+
   const key = `login_fail:${ip}`;
   const now = Date.now();
   const entry = rateLimitStore.get(key);

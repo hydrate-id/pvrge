@@ -9,6 +9,7 @@ import {
   getClientIp,
   hashIp,
   isLoginBlocked,
+  isRateLimitBypassed,
   recordFailedLogin,
   resetFailedLogin
 } from "./rate-limit";
@@ -124,7 +125,7 @@ export const app = new Elysia({ aot: false })
     const clientIp = getClientIp(request.headers);
 
     // Burst protection (In-Memory): Max 2 requests per 30s per IP
-    const burstCheck = checkRateLimit(`account_burst:${clientIp}`, 2, 30);
+    const burstCheck = checkRateLimit(`account_burst:${clientIp}`, 2, 30, env, request);
     if (!burstCheck.allowed) {
       set.status = 429;
       set.headers["Retry-After"] = String(burstCheck.retryAfter);
@@ -133,13 +134,15 @@ export const app = new Elysia({ aot: false })
 
     // 24-hour limit (Durable D1): Max 5 accounts per day per IP
     const ipHash = await hashIp(clientIp);
-    const creationCount = await env.DB.prepare(
-      "SELECT COUNT(*) as count FROM ip_creations WHERE ip_hash = ? AND created_at > datetime('now', '-24 hours')"
-    ).bind(ipHash).first<{ count: number }>();
+    if (!isRateLimitBypassed(env, request)) {
+      const creationCount = await env.DB.prepare(
+        "SELECT COUNT(*) as count FROM ip_creations WHERE ip_hash = ? AND created_at > datetime('now', '-24 hours')"
+      ).bind(ipHash).first<{ count: number }>();
 
-    if (creationCount && creationCount.count >= 5) {
-      set.status = 429;
-      return { error: "Maximum of 5 accounts per day reached for this IP." };
+      if (creationCount && creationCount.count >= 5) {
+        set.status = 429;
+        return { error: "Maximum of 5 accounts per day reached for this IP." };
+      }
     }
 
     const reqBody = (body || {}) as { username?: string; domain?: string; password?: string };
@@ -195,9 +198,11 @@ export const app = new Elysia({ aot: false })
       "INSERT INTO accounts (id, email, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?)"
     ).bind(id, email, hash, salt, createdAt).run();
 
-    await env.DB.prepare(
-      "INSERT INTO ip_creations (ip_hash, created_at) VALUES (?, datetime('now'))"
-    ).bind(ipHash).run();
+    if (!isRateLimitBypassed(env, request)) {
+      await env.DB.prepare(
+        "INSERT INTO ip_creations (ip_hash, created_at) VALUES (?, datetime('now'))"
+      ).bind(ipHash).run();
+    }
 
     const secret = getJwtSecret(env);
     const token = await signJWT({
@@ -219,7 +224,7 @@ export const app = new Elysia({ aot: false })
     const clientIp = getClientIp(request.headers);
 
     // Brute-force protection: Max 5 failed attempts per IP per 15 min (900s)
-    const loginStatus = isLoginBlocked(clientIp);
+    const loginStatus = isLoginBlocked(clientIp, env, request);
     if (loginStatus.blocked) {
       set.status = 429;
       set.headers["Retry-After"] = String(loginStatus.retryAfter);
@@ -375,7 +380,7 @@ export const app = new Elysia({ aot: false })
     const clientIp = getClientIp(request.headers);
 
     // Per-IP aggregate: Max 30 requests per 10s
-    const ipLimit = checkRateLimit(`poll_ip:${clientIp}`, 30, 10);
+    const ipLimit = checkRateLimit(`poll_ip:${clientIp}`, 30, 10, env, request);
     if (!ipLimit.allowed) {
       set.status = 429;
       set.headers["Retry-After"] = String(ipLimit.retryAfter);
@@ -389,7 +394,7 @@ export const app = new Elysia({ aot: false })
     }
 
     // Per-account token: Max 3 requests per 6s
-    const accountLimit = checkRateLimit(`poll_account:${user.id}`, 3, 6);
+    const accountLimit = checkRateLimit(`poll_account:${user.id}`, 3, 6, env, request);
     if (!accountLimit.allowed) {
       set.status = 429;
       set.headers["Retry-After"] = String(accountLimit.retryAfter);
