@@ -2,7 +2,7 @@ import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { email } from "./email";
 import type { Account, AttachmentMeta, Domain, Env, Message } from "./types";
-import { generatePassword, hashPassword, signJWT, verifyJWT, verifyPassword } from "./crypto";
+import { createJwt, generatePassword, hashPassword, signJWT, verifyJWT, verifyPassword } from "./crypto";
 import { generateUsername, getRandomDomain } from "./generator";
 import {
   checkRateLimit,
@@ -29,12 +29,79 @@ function getJwtSecret(env: Env): string {
   return env.JWT_SECRET;
 }
 
-async function getAuthUser(headers: Headers, env: Env) {
-  const authHeader = headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return null;
+function parseCookies(header: string | null): Record<string, string> {
+  if (!header) return {};
+  const cookies: Record<string, string> = {};
+  const pairs = header.split(";");
+  for (const pair of pairs) {
+    const idx = pair.indexOf("=");
+    if (idx > -1) {
+      const key = pair.slice(0, idx).trim();
+      const val = pair.slice(idx + 1).trim();
+      if (key) {
+        cookies[key] = decodeURIComponent(val);
+      }
+    }
   }
-  const token = authHeader.slice(7).trim();
+  return cookies;
+}
+
+function buildSetCookie(
+  name: string,
+  value: string,
+  options: { maxAge?: number; sameSite?: "Lax" | "Strict"; path?: string } = {}
+): string {
+  const maxAge = options.maxAge !== undefined ? options.maxAge : 604800;
+  const sameSite = options.sameSite || "Lax";
+  const path = options.path || "/";
+  return `${name}=${value}; HttpOnly; Secure; SameSite=${sameSite}; Path=${path}; Max-Age=${maxAge}`;
+}
+
+async function getAuthUser(reqOrHeaders: Request | Headers, env: Env) {
+  let headers: Headers;
+  let pathname = "";
+  if (reqOrHeaders instanceof Headers) {
+    headers = reqOrHeaders;
+  } else if ("headers" in reqOrHeaders && reqOrHeaders.headers instanceof Headers) {
+    headers = reqOrHeaders.headers;
+    try {
+      pathname = new URL(reqOrHeaders.url).pathname;
+    } catch {}
+  } else {
+    headers = new Headers();
+  }
+
+  const cookieHeader = headers.get("cookie");
+  const cookies = parseCookies(cookieHeader);
+
+  const isAdminOrDuty =
+    pathname.startsWith("/api/admin/") ||
+    pathname.startsWith("/api/duty") ||
+    headers.has("x-duty") ||
+    headers.has("x-duty-auth");
+
+  let token: string | undefined;
+
+  // 1. Cek pvrge_duty_session jika admin/duty
+  if (isAdminOrDuty && cookies.pvrge_duty_session) {
+    token = cookies.pvrge_duty_session;
+  }
+
+  // 2. Cek pvrge_session
+  if (!token && cookies.pvrge_session) {
+    token = cookies.pvrge_session;
+  }
+
+  // 3. Fallback header Authorization: Bearer <token>
+  if (!token) {
+    const authHeader = headers.get("authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.slice(7).trim();
+    }
+  }
+
+  if (!token) return null;
+
   const secret = getJwtSecret(env);
   const payload = await verifyJWT(token, secret);
   if (!payload) return null;
@@ -139,6 +206,7 @@ export const app = new Elysia({ aot: false })
       exp: Math.floor(Date.now() / 1000) + 7 * 24 * 3600
     }, secret);
 
+    set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", token, { maxAge: 604800, sameSite: "Lax" });
     set.status = 201;
     return {
       id,
@@ -194,6 +262,12 @@ export const app = new Elysia({ aot: false })
       exp: Math.floor(Date.now() / 1000) + 7 * 24 * 3600
     }, secret);
 
+    if (email === "support@pvrge.com") {
+      set.headers["Set-Cookie"] = buildSetCookie("pvrge_duty_session", token, { maxAge: 86400, sameSite: "Strict" });
+    } else {
+      set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", token, { maxAge: 604800, sameSite: "Lax" });
+    }
+
     return {
       token,
       account: {
@@ -202,8 +276,45 @@ export const app = new Elysia({ aot: false })
       }
     };
   })
+  .post("/api/auth/logout", async ({ set }) => {
+    set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", "", { maxAge: 0, sameSite: "Lax" });
+    return { success: true };
+  })
+  .post("/api/auth/duty-logout", async ({ set }) => {
+    set.headers["Set-Cookie"] = buildSetCookie("pvrge_duty_session", "", { maxAge: 0, sameSite: "Strict" });
+    return { success: true };
+  })
+  .get("/api/duty/me", async ({ request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (user && user.email === "support@pvrge.com") {
+      return { authenticated: true, email: "support@pvrge.com" };
+    }
+    set.status = 401;
+    return { authenticated: false };
+  })
+  .post("/api/auth/switch", async ({ body, env, set }) => {
+    const reqBody = (body || {}) as { accountId?: string };
+    const accountId = reqBody.accountId;
+    if (!accountId) {
+      set.status = 404;
+      return { error: "Account not found" };
+    }
+
+    const target = await env.DB.prepare(
+      "SELECT id, email FROM accounts WHERE id = ?"
+    ).bind(accountId).first<{ id: string; email: string }>();
+
+    if (target && target.email !== "support@pvrge.com") {
+      const token = await createJwt({ sub: target.id, email: target.email }, env.JWT_SECRET || getJwtSecret(env));
+      set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", token, { maxAge: 604800, sameSite: "Lax" });
+      return { success: true, account: { id: target.id, email: target.email } };
+    } else {
+      set.status = 404;
+      return { error: "Account not found" };
+    }
+  })
   .get("/api/accounts/me", async ({ request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -221,7 +332,7 @@ export const app = new Elysia({ aot: false })
     return { account };
   })
   .delete("/api/accounts/me", async ({ request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -271,7 +382,7 @@ export const app = new Elysia({ aot: false })
       return { error: "Rate limit exceeded" };
     }
 
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -297,7 +408,7 @@ export const app = new Elysia({ aot: false })
     return { messages };
   })
   .get("/api/admin/users", async ({ request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -320,7 +431,7 @@ export const app = new Elysia({ aot: false })
     return { users, total: users.length };
   })
   .delete("/api/admin/users/:id", async ({ params, request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -374,7 +485,7 @@ export const app = new Elysia({ aot: false })
     return { success: true };
   })
   .get("/api/messages/:id", async ({ params, request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -405,7 +516,7 @@ export const app = new Elysia({ aot: false })
     };
   })
   .get("/api/messages/:id/source", async ({ params, request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -453,7 +564,7 @@ ${message.body_html || message.body_text || ""}`;
     });
   })
   .delete("/api/messages/:id", async ({ params, request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
@@ -488,7 +599,7 @@ ${message.body_html || message.body_text || ""}`;
     return { success: true };
   })
   .get("/api/messages/:id/attachments/:attachmentId", async ({ params, request, env, set }) => {
-    const user = await getAuthUser(request.headers, env);
+    const user = await getAuthUser(request, env);
     if (!user) {
       set.status = 401;
       return { error: "Unauthorized" };
