@@ -544,7 +544,7 @@ onUnmounted(() => {
                       v-if="isOnDuty"
                       type="button"
                       @click="handleExitDuty"
-                      class="w-full flex items-center select-none outline-none rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-950/30 p-1.5 text-sm gap-2 text-emerald-600 dark:text-emerald-400 transition-colors text-left"
+                      class="w-full flex items-center select-none outline-none rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 p-1.5 text-sm gap-2 text-rose-600 dark:text-rose-400 transition-colors text-left"
                     >
                       <SignOut class="text-sm shrink-0" />
                       <span class="truncate font-medium">Exit Duty</span>
@@ -585,7 +585,7 @@ onUnmounted(() => {
               class="ml-3 rounded-full p-1 text-gray-400 hover:text-gray-500 outline-none focus:outline-none focus:ring-0 active:outline-none dark:hover:text-gray-300"
             >
               <span class="sr-only">Exit Duty</span>
-              <SignOut class="size-6 text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-500 cursor-pointer" />
+              <SignOut class="size-6 text-gray-500 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer" />
             </button>
             <button
               v-else
