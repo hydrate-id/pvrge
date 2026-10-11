@@ -70,7 +70,7 @@
           </div>
         </div>
         <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
-          Need immediate assistance, troubleshooting, or direct escalation? Chat directly with our on-duty operators via our official Telegram helpdesk.
+          For real-time assistance, quick troubleshooting, or operational inquiries, contact our on-duty desk.
         </p>
         <a
           href="https://t.me/pvrgebot"
