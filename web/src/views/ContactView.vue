@@ -56,7 +56,7 @@
         </a>
       </div>
 
-      <!-- Telegram Bot & Community Card -->
+      <!-- Telegram Support Desk Card -->
       <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-800/80">
         <div class="flex items-center space-x-3 mb-2">
           <div class="rounded-md bg-sky-50 p-2 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400">
@@ -65,12 +65,12 @@
             </svg>
           </div>
           <div>
-            <h2 class="text-base font-semibold text-gray-900 dark:text-white">Telegram Community & Bot</h2>
-            <p class="text-xs text-gray-500 dark:text-gray-400">Instant bot access & community updates</p>
+            <h2 class="text-base font-semibold text-gray-900 dark:text-white">Telegram Support Desk</h2>
+            <p class="text-xs text-gray-500 dark:text-gray-400">Live operator helpdesk & assistance</p>
           </div>
         </div>
         <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
-          Connect directly via Telegram for instant disposable inboxes, notifications, and updates.
+          For real-time assistance, quick troubleshooting, or operational inquiries, contact our on-duty desk.
         </p>
         <a
           href="https://t.me/pvrgebot"
@@ -78,7 +78,7 @@
           rel="noopener noreferrer"
           class="inline-flex items-center text-sm font-medium text-sky-600 dark:text-sky-400 hover:underline"
         >
-          @pvrgebot on Telegram
+          Chat with Support on Telegram
           <svg class="ml-1 size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>

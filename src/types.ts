@@ -5,6 +5,8 @@ export interface Env {
   JWT_SECRET?: string;
   ENVIRONMENT?: string;
   DISABLE_RATE_LIMIT?: string;
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_WEBHOOK_SECRET?: string;
   PLUNK_API_KEY?: string;
 }
 
@@ -53,3 +55,31 @@ export interface JWTPayload {
   email: string;
   exp: number;
 }
+
+export interface SupportThread {
+  id: string;
+  channel: string;
+  telegram_chat_id: string;
+  telegram_user_id: string;
+  telegram_username: string | null;
+  telegram_first_name: string | null;
+  telegram_last_name: string | null;
+  status: "open" | "resolved";
+  last_message_snippet: string | null;
+  last_message_at: string | null;
+  unread_operator_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupportMessage {
+  id: string;
+  thread_id: string;
+  sender_type: "user" | "operator";
+  sender_name: string;
+  content: string;
+  telegram_message_id: string | null;
+  is_sent_to_telegram: number;
+  created_at: string;
+}
+

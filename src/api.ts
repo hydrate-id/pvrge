@@ -1,9 +1,10 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { email } from "./email";
-import type { Account, AttachmentMeta, Domain, Env, Message } from "./types";
+import type { Account, AttachmentMeta, Domain, Env, Message, SupportMessage, SupportThread } from "./types";
 import { createJwt, generatePassword, hashPassword, signJWT, verifyJWT, verifyPassword } from "./crypto";
 import { isDutyEmail } from "./admin";
+import { sendTelegramMessage } from "./telegram";
 import { generateUsername, getRandomDomain } from "./generator";
 import {
   checkRateLimit,
@@ -1002,4 +1003,273 @@ ${message.body_html || message.body_text || ""}`;
     }
 
     return { success: true, message: "Email processed" };
+  })
+  .post("/api/telegram/webhook", async ({ body, request, env, set }) => {
+    if (env.TELEGRAM_WEBHOOK_SECRET) {
+      const headerSecret = request.headers.get("x-telegram-bot-api-secret-token");
+      if (headerSecret !== env.TELEGRAM_WEBHOOK_SECRET) {
+        set.status = 401;
+        return { error: "Unauthorized" };
+      }
+    }
+
+    const update = (body || {}) as {
+      message?: {
+        message_id?: number;
+        chat?: { id: number | string; type?: string };
+        from?: { id: number | string; username?: string; first_name?: string; last_name?: string };
+        text?: string;
+        caption?: string;
+      };
+      edited_message?: {
+        message_id?: number;
+        chat?: { id: number | string; type?: string };
+        from?: { id: number | string; username?: string; first_name?: string; last_name?: string };
+        text?: string;
+        caption?: string;
+      };
+    };
+
+    const msg = update.message || update.edited_message;
+    if (!msg || !msg.chat?.id) {
+      return { ok: true };
+    }
+
+    const chatId = String(msg.chat.id);
+    const userId = String(msg.from?.id ?? msg.chat.id);
+    const username = msg.from?.username || null;
+    const firstName = msg.from?.first_name || null;
+    const lastName = msg.from?.last_name || null;
+    const text = (msg.text || msg.caption || "").trim();
+    const telegramMessageId = msg.message_id ? String(msg.message_id) : null;
+
+    if (text.startsWith("/start") && env.TELEGRAM_BOT_TOKEN) {
+      await sendTelegramMessage(
+        env.TELEGRAM_BOT_TOKEN,
+        chatId,
+        "Halo! Selamat datang di layanan dukungan pvrge. Silakan kirimkan pertanyaan atau kendala Anda di sini, tim kami siap membantu."
+      );
+    }
+
+    const snippet = text.slice(0, 100) || "[Media]";
+    const existing = await env.DB.prepare(
+      "SELECT id FROM support_threads WHERE telegram_chat_id = ?"
+    ).bind(chatId).first<{ id: string }>();
+
+    let threadId = existing?.id;
+    if (!threadId) {
+      threadId = crypto.randomUUID();
+      await env.DB.prepare(`
+        INSERT INTO support_threads (
+          id, channel, telegram_chat_id, telegram_user_id, telegram_username,
+          telegram_first_name, telegram_last_name, status, last_message_snippet,
+          last_message_at, unread_operator_count, created_at, updated_at
+        ) VALUES (?, 'telegram', ?, ?, ?, ?, ?, 'open', ?, datetime('now'), 1, datetime('now'), datetime('now'))
+      `).bind(
+        threadId, chatId, userId, username, firstName, lastName, snippet
+      ).run();
+    } else {
+      await env.DB.prepare(`
+        UPDATE support_threads SET
+          telegram_user_id = ?,
+          telegram_username = coalesce(?, telegram_username),
+          telegram_first_name = coalesce(?, telegram_first_name),
+          telegram_last_name = coalesce(?, telegram_last_name),
+          status = 'open',
+          last_message_snippet = ?,
+          last_message_at = datetime('now'),
+          unread_operator_count = unread_operator_count + 1,
+          updated_at = datetime('now')
+        WHERE id = ?
+      `).bind(
+        userId, username, firstName, lastName, snippet, threadId
+      ).run();
+    }
+
+    const senderName = [firstName, lastName].filter(Boolean).join(" ") || username || "Telegram User";
+    const msgId = crypto.randomUUID();
+    await env.DB.prepare(`
+      INSERT INTO support_messages (
+        id, thread_id, sender_type, sender_name, content, telegram_message_id, is_sent_to_telegram, created_at
+      ) VALUES (?, ?, 'user', ?, ?, ?, 1, datetime('now'))
+    `).bind(
+      msgId, threadId, senderName, text || "[Empty message]", telegramMessageId
+    ).run();
+
+    return { ok: true };
+  })
+  .get("/api/duty/support/threads", async ({ query, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const countsRow = await env.DB.prepare(`
+      SELECT
+        count(*) as total,
+        sum(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_count,
+        sum(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved_count
+      FROM support_threads
+    `).first<{ total: number; open_count: number | null; resolved_count: number | null }>();
+
+    const counts = {
+      all: countsRow?.total || 0,
+      open: countsRow?.open_count || 0,
+      resolved: countsRow?.resolved_count || 0
+    };
+
+    const statusFilter = (query as { status?: string })?.status || "all";
+    const search = (query as { search?: string })?.search?.trim() || "";
+
+    let sql = "SELECT * FROM support_threads WHERE 1=1";
+    const bindings: unknown[] = [];
+
+    if (statusFilter === "open" || statusFilter === "resolved") {
+      sql += " AND status = ?";
+      bindings.push(statusFilter);
+    }
+
+    if (search) {
+      sql += " AND (telegram_username LIKE ? OR telegram_first_name LIKE ? OR telegram_last_name LIKE ? OR last_message_snippet LIKE ?)";
+      const term = `%${search}%`;
+      bindings.push(term, term, term, term);
+    }
+
+    sql += " ORDER BY last_message_at DESC";
+
+    const stmt = env.DB.prepare(sql);
+    const bound = bindings.length > 0 ? stmt.bind(...bindings) : stmt;
+    const { results: threads } = await bound.all<SupportThread>();
+
+    return { threads: threads || [], counts };
+  })
+  .get("/api/duty/support/threads/:id", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const thread = await env.DB.prepare(
+      "SELECT * FROM support_threads WHERE id = ?"
+    ).bind(params.id).first<SupportThread>();
+
+    if (!thread) {
+      set.status = 404;
+      return { error: "Thread not found" };
+    }
+
+    await env.DB.prepare(
+      "UPDATE support_threads SET unread_operator_count = 0 WHERE id = ?"
+    ).bind(params.id).run();
+
+    const messages = await env.DB.prepare(
+      "SELECT * FROM support_messages WHERE thread_id = ? ORDER BY created_at ASC"
+    ).bind(params.id).all<SupportMessage>();
+
+    return {
+      thread: { ...thread, unread_operator_count: 0 },
+      messages: messages.results || []
+    };
+  })
+  .post("/api/duty/support/threads/:id/reply", async ({ params, body, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const reqBody = (body || {}) as { content?: string };
+    const content = reqBody.content?.trim();
+    if (!content) {
+      set.status = 400;
+      return { error: "Message content is required" };
+    }
+
+    const thread = await env.DB.prepare(
+      "SELECT telegram_chat_id FROM support_threads WHERE id = ?"
+    ).bind(params.id).first<{ telegram_chat_id: string }>();
+
+    if (!thread) {
+      set.status = 404;
+      return { error: "Thread not found" };
+    }
+
+    let isSent = 0;
+    if (env.TELEGRAM_BOT_TOKEN) {
+      const ok = await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, thread.telegram_chat_id, content);
+      isSent = ok ? 1 : 0;
+    }
+
+    const messageId = crypto.randomUUID();
+    await env.DB.prepare(`
+      INSERT INTO support_messages (
+        id, thread_id, sender_type, sender_name, content, is_sent_to_telegram, created_at
+      ) VALUES (?, ?, 'operator', ?, ?, ?, datetime('now'))
+    `).bind(messageId, params.id, user.email, content, isSent).run();
+
+    const snippet = content.slice(0, 100);
+    await env.DB.prepare(`
+      UPDATE support_threads SET
+        last_message_snippet = ?,
+        last_message_at = datetime('now'),
+        updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(snippet, params.id).run();
+
+    const savedMessage = await env.DB.prepare(
+      "SELECT * FROM support_messages WHERE id = ?"
+    ).bind(messageId).first<SupportMessage>();
+
+    return { success: true, message: savedMessage };
+  })
+  .patch("/api/duty/support/threads/:id", async ({ params, body, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const reqBody = (body || {}) as { status?: string };
+    const status = reqBody.status;
+    if (status !== "open" && status !== "resolved") {
+      set.status = 400;
+      return { error: "Invalid status: must be 'open' or 'resolved'" };
+    }
+
+    const thread = await env.DB.prepare(
+      "SELECT id FROM support_threads WHERE id = ?"
+    ).bind(params.id).first<{ id: string }>();
+
+    if (!thread) {
+      set.status = 404;
+      return { error: "Thread not found" };
+    }
+
+    await env.DB.prepare(
+      "UPDATE support_threads SET status = ?, updated_at = datetime('now') WHERE id = ?"
+    ).bind(status, params.id).run();
+
+    return { success: true, status };
   });
