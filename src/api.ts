@@ -15,6 +15,15 @@ import {
   resetFailedLogin
 } from "./rate-limit";
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function getJwtSecret(env: Env): string {
   if (!env.JWT_SECRET) {
     if (env.ENVIRONMENT === "production") {
@@ -712,13 +721,83 @@ export const app = new Elysia({ aot: false })
       } catch {}
     }
 
+    let replies: any[] = [];
+    try {
+      const repRows = await env.DB.prepare(
+        "SELECT id, sender_email, recipient_email, subject, body, created_at FROM email_replies WHERE message_id = ? ORDER BY created_at ASC"
+      ).bind(params.id).all();
+      replies = repRows.results || [];
+    } catch {}
+
     return {
       message: {
         ...message,
         auth_status: message.auth_status || "none",
-        attachments
+        attachments,
+        replies
       }
     };
+  })
+  .post("/api/duty/messages/:id/reply", async ({ params, body, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const message = await env.DB.prepare(
+      "SELECT id, sender_email, subject FROM messages WHERE id = ?"
+    ).bind(params.id).first<{ id: string; sender_email: string; subject: string }>();
+
+    if (!message) {
+      set.status = 404;
+      return { error: "Message not found" };
+    }
+
+    const reqBody = (body || {}) as { subject?: string; body?: string };
+    const replyText = reqBody.body?.trim();
+    if (!replyText) {
+      set.status = 400;
+      return { error: "Body is required" };
+    }
+
+    const from = user.email;
+    const to = message.sender_email;
+    const finalSubject = reqBody.subject?.trim() || (message.subject?.startsWith("Re:") ? message.subject : `Re: ${message.subject || ""}`);
+    const formattedBody = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #111827; white-space: pre-wrap;">${escapeHtml(replyText)}</div>`;
+
+    const plunkRes = await fetch("https://next-api.useplunk.com/v1/send", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.PLUNK_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        to,
+        subject: finalSubject,
+        body: formattedBody,
+        from
+      })
+    });
+
+    if (!plunkRes.ok) {
+      const err = await plunkRes.text().catch(() => "");
+      console.error("Plunk error:", plunkRes.status, err);
+      set.status = 502;
+      return { error: "Failed to send email via Plunk" };
+    }
+
+    const replyId = crypto.randomUUID();
+    await env.DB.prepare(
+      "INSERT INTO email_replies (id, message_id, sender_email, recipient_email, subject, body, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))"
+    ).bind(replyId, message.id, from, to, finalSubject, replyText).run();
+
+    return { success: true, message: "Reply sent successfully" };
   })
   .get("/api/messages/:id/source", async ({ params, request, env, set }) => {
     const user = await getAuthUser(request, env);

@@ -5,6 +5,7 @@ export interface Env {
   JWT_SECRET?: string;
   ENVIRONMENT?: string;
   DISABLE_RATE_LIMIT?: string;
+  PLUNK_API_KEY?: string;
 }
 
 export interface Domain {

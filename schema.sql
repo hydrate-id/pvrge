@@ -48,3 +48,15 @@ CREATE TABLE IF NOT EXISTS ip_creations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ip_creations_hash_date ON ip_creations(ip_hash, created_at);
+
+CREATE TABLE IF NOT EXISTS email_replies (
+    id TEXT PRIMARY KEY,
+    message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    sender_email TEXT NOT NULL,
+    recipient_email TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_email_replies_message_id ON email_replies(message_id);
+
