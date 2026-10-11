@@ -7,6 +7,7 @@ export interface Env {
   DISABLE_RATE_LIMIT?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_WEBHOOK_SECRET?: string;
+  PLUNK_API_KEY?: string;
 }
 
 export interface Domain {

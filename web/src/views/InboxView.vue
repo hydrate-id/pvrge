@@ -13,6 +13,7 @@ import EllipsisV from '@primeicons/vue/ellipsis-v';
 import Download from '@primeicons/vue/download';
 import Code from '@primeicons/vue/code';
 import Print from '@primeicons/vue/print';
+import Reply from '@primeicons/vue/reply';
 import { Copy, Check, Bell } from '@primeicons/vue';
 import { getMsgOtp } from '../utils/otp';
 import { copyText } from '../utils/clipboard';
@@ -61,6 +62,57 @@ const rawSourceText = ref('');
 const viewMode = ref('html'); // 'html' or 'text'
 const readMessageIds = ref(new Set());
 const showDeleteMessageDialog = ref(false);
+
+const isOnDutyMode = computed(() => routePrefix.value === '/onduty' || session.isDutyActive.value);
+const showReplyBox = ref(false);
+const replySubject = ref('');
+const replyBody = ref('');
+const isSendingReply = ref(false);
+const replyError = ref('');
+const replySuccess = ref('');
+
+function openReplyBox() {
+  replySubject.value = 'Re: ' + (selectedMessageDetail.value?.subject || '');
+  replyBody.value = '';
+  replyError.value = '';
+  replySuccess.value = '';
+  showReplyBox.value = true;
+}
+
+function cancelReply() {
+  showReplyBox.value = false;
+  replyBody.value = '';
+  replyError.value = '';
+}
+
+async function submitEmailReply() {
+  if (!replyBody.value.trim() || isSendingReply.value) return;
+  isSendingReply.value = true;
+  replyError.value = '';
+  replySuccess.value = '';
+  try {
+    const res = await fetch(`/api/duty/messages/${selectedMessageDetail.value.id}/reply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subject: replySubject.value,
+        body: replyBody.value
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to send reply');
+    }
+    replySuccess.value = 'Reply sent successfully!';
+    showReplyBox.value = false;
+    replyBody.value = '';
+    await fetchMessageDetail(selectedMessageDetail.value.id);
+  } catch (err) {
+    replyError.value = err.message || 'Failed to send reply';
+  } finally {
+    isSendingReply.value = false;
+  }
+}
 const errorDialog = ref({ open: false, title: '', message: '' });
 
 // Copy feedback state
@@ -972,7 +1024,19 @@ onUnmounted(() => {
               {{ selectedMessageDetail.subject || '(No Subject)' }}
             </h2>
           </div>
-          <div class="relative mt-4 flex shrink-0 md:mt-0 md:ml-4">
+          <div class="relative mt-4 flex shrink-0 items-center gap-2 md:mt-0 md:ml-4">
+            <!-- Reply button for On-Duty mode -->
+            <button
+              v-if="isOnDutyMode"
+              type="button"
+              @click="openReplyBox"
+              class="rounded-md font-medium inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 ring-1 ring-inset ring-emerald-600/30 text-white bg-emerald-600 hover:bg-emerald-500 shadow-xs transition cursor-pointer"
+              title="Reply to sender"
+            >
+              <Reply class="size-3.5 shrink-0" />
+              <span>Reply</span>
+            </button>
+
             <!-- Trigger Dropdown -->
             <button
               type="button"
@@ -995,6 +1059,18 @@ onUnmounted(() => {
               v-if="showActionsMenu"
               class="absolute right-0 top-full mt-1.5 w-44 rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black/5 dark:ring-gray-700 z-50 py-1 text-sm focus:outline-none"
             >
+              <!-- Reply (On-Duty mode only) -->
+              <button
+                v-if="isOnDutyMode"
+                type="button"
+                @click="() => { showActionsMenu = false; openReplyBox(); }"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition cursor-pointer font-medium"
+              >
+                <Reply class="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span>Reply</span>
+              </button>
+              <div v-if="isOnDutyMode" class="-mx-1 my-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+
               <!-- Download -->
               <button
                 type="button"
@@ -1167,6 +1243,105 @@ onUnmounted(() => {
               style="overflow: hidden; height: 150px;"
               @load="handleIframeLoad"
             ></iframe>
+          </div>
+
+          <!-- Sent Replies History Section -->
+          <div
+            v-if="selectedMessageDetail.replies && selectedMessageDetail.replies.length > 0"
+            class="border-t border-gray-200 px-4 py-4 sm:px-6 dark:border-gray-700/60 bg-gray-50/40 dark:bg-gray-800/30"
+          >
+            <div class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              <Reply class="size-3.5" />
+              <span>Sent Replies ({{ selectedMessageDetail.replies.length }})</span>
+            </div>
+            <div class="space-y-3">
+              <div
+                v-for="rep in selectedMessageDetail.replies"
+                :key="rep.id"
+                class="rounded-lg border border-emerald-200/80 bg-white p-3.5 text-xs shadow-xs dark:border-emerald-900/50 dark:bg-gray-800"
+              >
+                <div class="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-gray-100 dark:border-gray-700/50">
+                  <div class="flex items-center gap-2">
+                    <span class="font-semibold text-emerald-700 dark:text-emerald-400">{{ rep.sender_email }}</span>
+                    <span class="text-gray-400">&rarr;</span>
+                    <span class="text-gray-600 dark:text-gray-300">{{ rep.recipient_email }}</span>
+                  </div>
+                  <span class="text-[11px] text-gray-400">{{ rep.created_at }}</span>
+                </div>
+                <div class="font-medium text-gray-900 dark:text-gray-200 mb-1.5">{{ rep.subject }}</div>
+                <div class="text-gray-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">{{ rep.body }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reply Box Section (On-Duty mode only) -->
+          <div
+            v-if="isOnDutyMode && showReplyBox"
+            class="border-t border-gray-200 px-4 py-4 sm:px-6 dark:border-gray-700/60 bg-white dark:bg-gray-800/90"
+          >
+            <div class="mb-3 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <Reply class="size-4 text-emerald-600 dark:text-emerald-400" />
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                  Reply to <span class="text-emerald-600 dark:text-emerald-400 font-mono">{{ selectedMessageDetail.sender_email }}</span>
+                </h3>
+              </div>
+              <span class="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300">
+                From: {{ currentAccount?.email || 'support@pvrge.com' }}
+              </span>
+            </div>
+
+            <!-- Error banner -->
+            <div
+              v-if="replyError"
+              class="mb-3 rounded-md bg-rose-50 p-2.5 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60"
+            >
+              {{ replyError }}
+            </div>
+
+            <form @submit.prevent="submitEmailReply" class="space-y-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Subject</label>
+                <input
+                  type="text"
+                  v-model="replySubject"
+                  required
+                  placeholder="Subject..."
+                  class="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 shadow-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Message Body</label>
+                <textarea
+                  v-model="replyBody"
+                  required
+                  rows="6"
+                  placeholder="Write your email reply here..."
+                  class="block w-full rounded-md border border-gray-300 bg-white p-3 text-xs text-gray-900 shadow-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white font-sans leading-relaxed"
+                ></textarea>
+              </div>
+
+              <div class="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  @click="cancelReply"
+                  :disabled="isSendingReply"
+                  class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  :disabled="isSendingReply || !replyBody.trim()"
+                  class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-500 focus:outline-none disabled:opacity-50 cursor-pointer transition"
+                >
+                  <Spinner v-if="isSendingReply" class="size-3.5 animate-spin" />
+                  <Reply v-else class="size-3.5" />
+                  <span>{{ isSendingReply ? 'Sending...' : 'Send Reply' }}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
