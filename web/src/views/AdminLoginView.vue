@@ -11,13 +11,17 @@ const route = useRoute();
 const router = useRouter();
 const session = useSession();
 
-const email = 'support@pvrge.com';
+const email = ref('support@pvrge.com');
 const password = ref('');
 const showPassword = ref(false);
 const isLoading = ref(false);
 const errorMessage = ref('');
 
 async function handleSubmit() {
+  if (!email.value) {
+    errorMessage.value = 'Email is required.';
+    return;
+  }
   if (!password.value) {
     errorMessage.value = 'Password is required.';
     return;
@@ -27,7 +31,7 @@ async function handleSubmit() {
   errorMessage.value = '';
 
   try {
-    await session.loginDuty(password.value);
+    await session.loginDuty(email.value, password.value);
 
     const target = route.query.redirect ? String(route.query.redirect) : '/onduty';
     router.push(target);
@@ -70,7 +74,7 @@ async function handleSubmit() {
         </div>
 
         <form @submit.prevent="handleSubmit" class="space-y-5">
-          <!-- Email Field (Readonly) -->
+          <!-- Email Field -->
           <div>
             <div class="flex items-center justify-between mb-1.5">
               <label class="block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">
@@ -83,10 +87,11 @@ async function handleSubmit() {
             <div class="relative">
               <input
                 type="email"
-                :value="email"
-                disabled
-                readonly
-                class="block w-full rounded-lg border border-gray-300 bg-gray-100 px-3.5 py-2.5 font-mono text-sm text-gray-700 shadow-xs cursor-not-allowed dark:border-gray-700 dark:bg-gray-900/70 dark:text-gray-300 focus:outline-none"
+                v-model="email"
+                required
+                autocomplete="email"
+                placeholder="duty@pvrge.com"
+                class="block w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 font-mono text-sm text-gray-900 shadow-xs placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder:text-gray-500"
               />
             </div>
           </div>

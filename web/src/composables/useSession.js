@@ -9,8 +9,9 @@ async function checkDutySession() {
   try {
     const res = await fetch('/api/duty/me');
     if (res.status === 200) {
+      const data = await res.json().catch(() => null);
       isDutyActive.value = true;
-      dutySession.value = { account: { email: 'support@pvrge.com' } };
+      dutySession.value = { account: { email: data?.email || 'support@pvrge.com' } };
       return true;
     } else {
       isDutyActive.value = false;
@@ -24,19 +25,26 @@ async function checkDutySession() {
   }
 }
 
-async function loginDuty(password) {
+async function loginDuty(emailOrPassword, maybePassword) {
+  let email = 'support@pvrge.com';
+  let password = emailOrPassword;
+  if (maybePassword !== undefined) {
+    email = emailOrPassword;
+    password = maybePassword;
+  }
+
   isLoading.value = true;
   error.value = null;
   try {
     const res = await fetch('/api/auth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'support@pvrge.com', password }),
+      body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Invalid admin credentials');
     isDutyActive.value = true;
-    dutySession.value = { account: data.account || { email: 'support@pvrge.com' } };
+    dutySession.value = { account: data.account || { email } };
     return data;
   } finally {
     isLoading.value = false;
