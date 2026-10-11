@@ -40,11 +40,10 @@ const isOnDuty = computed(() => isDutyActive.value || route.path.startsWith('/on
 const activeAccount = session.activeAccount;
 const accounts = session.accounts;
 
-function handleExitDuty() {
-  session.logoutDuty();
+async function handleExitDuty() {
   isDropdownOpen.value = false;
-  router.push('/');
-  session.initSession();
+  await session.logoutDuty();
+  router.push('/onduty/login');
 }
 
 function handleCopyEmail() {
