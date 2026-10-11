@@ -105,7 +105,10 @@ function handleResponseStatus(res, fallbackMessage = 'Too many requests') {
 
 function loadSessionsFromStorage() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    localStorage.removeItem('pvrge_sessions');
+    localStorage.removeItem('pvrge_duty_session');
+
+    const raw = sessionStorage.getItem(STORAGE_KEY);
     if (raw) {
       const data = JSON.parse(raw);
       if (Array.isArray(data.accounts)) {
@@ -122,7 +125,7 @@ function loadSessionsFromStorage() {
       }
     }
   } catch (e) {
-    console.error('Failed to parse sessions from localStorage:', e);
+    console.error('Failed to parse sessions from sessionStorage:', e);
   }
 }
 
@@ -138,9 +141,9 @@ function saveSessionsToStorage() {
       accounts: cleanedAccounts,
       activeAccountId: activeAccountId.value,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (e) {
-    console.error('Failed to save sessions to localStorage:', e);
+    console.error('Failed to save sessions to sessionStorage:', e);
   }
 }
 
