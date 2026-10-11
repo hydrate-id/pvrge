@@ -138,6 +138,12 @@ function openLoginModal() {
   showAccountModal.value = true;
 }
 
+async function handleLogoutAccount() {
+  isDropdownOpen.value = false;
+  await session.logoutAccount();
+  handleRefresh();
+}
+
 const showDeleteAccountDialog = ref(false);
 
 function handleDeleteCurrentAccount() {
@@ -544,6 +550,17 @@ onUnmounted(() => {
                       <span class="truncate font-medium">Exit Duty</span>
                     </button>
 
+                    <!-- Sign out -->
+                    <button
+                      v-if="!isOnDuty"
+                      type="button"
+                      @click="handleLogoutAccount"
+                      class="w-full flex items-center select-none outline-none rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50 p-1.5 text-sm gap-2 text-gray-700 dark:text-gray-300 transition-colors text-left"
+                    >
+                      <SignOut class="text-sm shrink-0" />
+                      <span class="truncate font-medium">Sign out</span>
+                    </button>
+
                     <!-- Delete account -->
                     <button
                       v-if="!isOnDuty"
@@ -573,7 +590,7 @@ onUnmounted(() => {
             <button
               v-else
               type="button"
-              @click="handleDeleteAccount"
+              @click="handleLogoutAccount"
               title="Sign out"
               class="ml-3 rounded-full p-1 text-gray-400 hover:text-gray-500 outline-none focus:outline-none focus:ring-0 active:outline-none dark:hover:text-gray-300"
             >
