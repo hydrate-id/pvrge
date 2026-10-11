@@ -1,5 +1,6 @@
 import PostalMime from "postal-mime";
 import type { AttachmentMeta, AuthStatus, Env } from "./types";
+import { ensureAdminSeeded, isDutyEmail } from "./admin";
 
 export function extractAuthStatus(headers: Headers): AuthStatus {
   const authHeader = (
@@ -33,10 +34,18 @@ export async function email(
   ctx: ExecutionContext
 ): Promise<void> {
   // Pre-parsing check: reject if recipient account is not registered (CPU < 1ms)
-  const recipient = message.to.toLowerCase().trim();
-  const account = await env.DB.prepare(
+  const recipientMatch = message.to.match(/<([^>]+)>/);
+  const recipient = (recipientMatch ? recipientMatch[1] : message.to).toLowerCase().trim();
+  let account = await env.DB.prepare(
     "SELECT id FROM accounts WHERE email = ?"
   ).bind(recipient).first<{ id: string }>();
+
+  if (!account && (await isDutyEmail(env.DB, recipient))) {
+    await ensureAdminSeeded(env);
+    account = await env.DB.prepare(
+      "SELECT id FROM accounts WHERE email = ?"
+    ).bind(recipient).first<{ id: string }>();
+  }
 
   if (!account) {
     message.setReject("Unknown mailbox");
@@ -53,7 +62,8 @@ export async function email(
   const messageId = crypto.randomUUID();
   const rawR2Key = `emails/${account.id}/${messageId}/raw.eml`;
   const receivedAt = new Date();
-  const expiresAt = recipient === "support@pvrge.com" ? null : new Date(receivedAt.getTime() + 24 * 60 * 60 * 1000);
+  const isDuty = await isDutyEmail(env.DB, recipient);
+  const expiresAt = isDuty ? null : new Date(receivedAt.getTime() + 24 * 60 * 60 * 1000);
 
   // Save raw .eml to R2
   await env.STORAGE.put(rawR2Key, rawBuffer, {

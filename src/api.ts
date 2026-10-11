@@ -800,6 +800,217 @@ export const app = new Elysia({ aot: false })
 
     return { success: true, message: "Reply sent successfully" };
   })
+  .get("/api/duty/messages", async ({ request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const result = await env.DB.prepare(
+      "SELECT id, sender_email, sender_name, subject, snippet, has_attachments, COALESCE(auth_status, 'none') as auth_status, received_at, expires_at FROM messages WHERE account_id = ? ORDER BY received_at DESC"
+    ).bind(user.id).all<Message>();
+
+    const messages = (result.results || []).map((msg) => ({
+      ...msg,
+      auth_status: msg.auth_status || "none"
+    }));
+
+    return { messages };
+  })
+  .get("/api/duty/messages/:id", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const message = await env.DB.prepare(
+      "SELECT * FROM messages WHERE id = ? AND account_id = ?"
+    ).bind(params.id, user.id).first<Message>();
+
+    if (!message) {
+      set.status = 404;
+      return { error: "Message not found" };
+    }
+
+    let attachments: AttachmentMeta[] = [];
+    if (message.attachments_json) {
+      try {
+        attachments = JSON.parse(message.attachments_json);
+      } catch {}
+    }
+
+    let replies: any[] = [];
+    try {
+      const repRows = await env.DB.prepare(
+        "SELECT id, sender_email, recipient_email, subject, body, created_at FROM email_replies WHERE message_id = ? ORDER BY created_at ASC"
+      ).bind(params.id).all();
+      replies = repRows.results || [];
+    } catch {}
+
+    return {
+      message: {
+        ...message,
+        auth_status: message.auth_status || "none",
+        attachments,
+        replies
+      }
+    };
+  })
+  .get("/api/duty/messages/:id/source", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const message = await env.DB.prepare(
+      "SELECT id, sender_name, sender_email, subject, body_text, body_html, raw_r2_key, received_at FROM messages WHERE id = ? AND account_id = ?"
+    ).bind(params.id, user.id).first<{
+      id: string;
+      sender_name: string | null;
+      sender_email: string;
+      subject: string;
+      body_text: string | null;
+      body_html: string | null;
+      raw_r2_key: string | null;
+      received_at: string;
+    }>();
+
+    if (!message) {
+      set.status = 404;
+      return { error: "Message not found" };
+    }
+
+    if (message.raw_r2_key) {
+      const object = await env.STORAGE.get(message.raw_r2_key);
+      if (object) {
+        const rawText = await object.text();
+        return new Response(rawText, {
+          headers: { "Content-Type": "text/plain; charset=utf-8" }
+        });
+      }
+    }
+
+    const rawText = `Delivered-To: ${user.email}
+From: ${message.sender_name ? `${message.sender_name} <${message.sender_email}>` : message.sender_email}
+To: ${user.email}
+Subject: ${message.subject}
+Date: ${new Date(message.received_at).toUTCString()}
+Content-Type: text/html; charset=utf-8
+
+${message.body_html || message.body_text || ""}`;
+
+    return new Response(rawText, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" }
+    });
+  })
+  .delete("/api/duty/messages/:id", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const message = await env.DB.prepare(
+      "SELECT id, raw_r2_key, attachments_json FROM messages WHERE id = ? AND account_id = ?"
+    ).bind(params.id, user.id).first<{ id: string; raw_r2_key: string | null; attachments_json: string | null }>();
+
+    if (!message) {
+      set.status = 404;
+      return { error: "Message not found" };
+    }
+
+    const r2Keys: string[] = [];
+    if (message.raw_r2_key) r2Keys.push(message.raw_r2_key);
+    if (message.attachments_json) {
+      try {
+        const atts = JSON.parse(message.attachments_json) as { r2Key?: string }[];
+        for (const att of atts) {
+          if (att.r2Key) r2Keys.push(att.r2Key);
+        }
+      } catch {}
+    }
+
+    if (r2Keys.length > 0) {
+      await env.STORAGE.delete(r2Keys);
+    }
+
+    await env.DB.prepare("DELETE FROM messages WHERE id = ?").bind(params.id).run();
+
+    return { success: true };
+  })
+  .get("/api/duty/messages/:id/attachments/:attId", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const message = await env.DB.prepare(
+      "SELECT attachments_json FROM messages WHERE id = ? AND account_id = ?"
+    ).bind(params.id, user.id).first<{ attachments_json: string | null }>();
+
+    if (!message || !message.attachments_json) {
+      set.status = 404;
+      return { error: "Message or attachment not found" };
+    }
+
+    let attachments: AttachmentMeta[] = [];
+    try {
+      attachments = JSON.parse(message.attachments_json);
+    } catch {
+      set.status = 500;
+      return { error: "Corrupted attachment metadata" };
+    }
+
+    const target = attachments.find((a) => a.id === params.attId);
+    if (!target || !target.r2Key) {
+      set.status = 404;
+      return { error: "Attachment not found" };
+    }
+
+    const object = await env.STORAGE.get(target.r2Key);
+    if (!object || !object.body) {
+      set.status = 404;
+      return { error: "Attachment file not found in storage" };
+    }
+
+    const headers = new Headers();
+    headers.set("Content-Type", target.mimeType || "application/octet-stream");
+    headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(target.filename)}"`);
+    if (object.size) {
+      headers.set("Content-Length", object.size.toString());
+    }
+
+    return new Response(object.body, { headers });
+  })
   .get("/api/messages/:id/source", async ({ params, request, env, set }) => {
     const user = await getAuthUser(request, env);
     if (!user) {
@@ -1047,14 +1258,14 @@ ${message.body_html || message.body_text || ""}`;
       await sendTelegramMessage(
         env.TELEGRAM_BOT_TOKEN,
         chatId,
-        "Halo! Selamat datang di layanan dukungan pvrge. Silakan kirimkan pertanyaan atau kendala Anda di sini, tim kami siap membantu."
+        "Hello! Welcome to pvrge support desk. Feel free to describe your issue or inquiry here, and our on-duty team will assist you shortly."
       );
     }
 
     const snippet = text.slice(0, 100) || "[Media]";
     const existing = await env.DB.prepare(
-      "SELECT id FROM support_threads WHERE telegram_chat_id = ?"
-    ).bind(chatId).first<{ id: string }>();
+      "SELECT id, status FROM support_threads WHERE telegram_chat_id = ?"
+    ).bind(chatId).first<{ id: string; status: string }>();
 
     let threadId = existing?.id;
     if (!threadId) {
@@ -1069,6 +1280,22 @@ ${message.body_html || message.body_text || ""}`;
         threadId, chatId, userId, username, firstName, lastName, snippet
       ).run();
     } else {
+      if (existing.status === "resolved") {
+        await env.DB.prepare(`
+          INSERT INTO support_messages (
+            id, thread_id, sender_type, sender_name, content, telegram_message_id, is_sent_to_telegram, created_at
+          ) VALUES (?, ?, 'system', 'System', '--- New Case Opened ---', null, 1, datetime('now'))
+        `).bind(crypto.randomUUID(), threadId).run();
+
+        if (env.TELEGRAM_BOT_TOKEN) {
+          await sendTelegramMessage(
+            env.TELEGRAM_BOT_TOKEN,
+            chatId,
+            "A new support request has been opened. Our on-duty team will assist you shortly."
+          );
+        }
+      }
+
       await env.DB.prepare(`
         UPDATE support_threads SET
           telegram_user_id = ?,
@@ -1259,8 +1486,8 @@ ${message.body_html || message.body_text || ""}`;
     }
 
     const thread = await env.DB.prepare(
-      "SELECT id FROM support_threads WHERE id = ?"
-    ).bind(params.id).first<{ id: string }>();
+      "SELECT id, telegram_chat_id FROM support_threads WHERE id = ?"
+    ).bind(params.id).first<{ id: string; telegram_chat_id: string | null }>();
 
     if (!thread) {
       set.status = 404;
@@ -1270,6 +1497,19 @@ ${message.body_html || message.body_text || ""}`;
     await env.DB.prepare(
       "UPDATE support_threads SET status = ?, updated_at = datetime('now') WHERE id = ?"
     ).bind(status, params.id).run();
+
+    if (status === "resolved") {
+      const resolutionText = "Your support request has been marked as resolved by our on-duty team. If you need any further assistance, feel free to message us again anytime.";
+      if (env.TELEGRAM_BOT_TOKEN && thread.telegram_chat_id) {
+        await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, thread.telegram_chat_id, resolutionText);
+      }
+      // Catat pesan resolution di support_messages:
+      await env.DB.prepare(`
+        INSERT INTO support_messages (
+          id, thread_id, sender_type, sender_name, content, telegram_message_id, is_sent_to_telegram, created_at
+        ) VALUES (?, ?, 'operator', ?, ?, null, 1, datetime('now'))
+      `).bind(crypto.randomUUID(), params.id, user.email, resolutionText).run();
+    }
 
     return { success: true, status };
   });
