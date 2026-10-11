@@ -800,6 +800,217 @@ export const app = new Elysia({ aot: false })
 
     return { success: true, message: "Reply sent successfully" };
   })
+  .get("/api/duty/messages", async ({ request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const result = await env.DB.prepare(
+      "SELECT id, sender_email, sender_name, subject, snippet, has_attachments, COALESCE(auth_status, 'none') as auth_status, received_at, expires_at FROM messages WHERE account_id = ? ORDER BY received_at DESC"
+    ).bind(user.id).all<Message>();
+
+    const messages = (result.results || []).map((msg) => ({
+      ...msg,
+      auth_status: msg.auth_status || "none"
+    }));
+
+    return { messages };
+  })
+  .get("/api/duty/messages/:id", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const message = await env.DB.prepare(
+      "SELECT * FROM messages WHERE id = ? AND account_id = ?"
+    ).bind(params.id, user.id).first<Message>();
+
+    if (!message) {
+      set.status = 404;
+      return { error: "Message not found" };
+    }
+
+    let attachments: AttachmentMeta[] = [];
+    if (message.attachments_json) {
+      try {
+        attachments = JSON.parse(message.attachments_json);
+      } catch {}
+    }
+
+    let replies: any[] = [];
+    try {
+      const repRows = await env.DB.prepare(
+        "SELECT id, sender_email, recipient_email, subject, body, created_at FROM email_replies WHERE message_id = ? ORDER BY created_at ASC"
+      ).bind(params.id).all();
+      replies = repRows.results || [];
+    } catch {}
+
+    return {
+      message: {
+        ...message,
+        auth_status: message.auth_status || "none",
+        attachments,
+        replies
+      }
+    };
+  })
+  .get("/api/duty/messages/:id/source", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const message = await env.DB.prepare(
+      "SELECT id, sender_name, sender_email, subject, body_text, body_html, raw_r2_key, received_at FROM messages WHERE id = ? AND account_id = ?"
+    ).bind(params.id, user.id).first<{
+      id: string;
+      sender_name: string | null;
+      sender_email: string;
+      subject: string;
+      body_text: string | null;
+      body_html: string | null;
+      raw_r2_key: string | null;
+      received_at: string;
+    }>();
+
+    if (!message) {
+      set.status = 404;
+      return { error: "Message not found" };
+    }
+
+    if (message.raw_r2_key) {
+      const object = await env.STORAGE.get(message.raw_r2_key);
+      if (object) {
+        const rawText = await object.text();
+        return new Response(rawText, {
+          headers: { "Content-Type": "text/plain; charset=utf-8" }
+        });
+      }
+    }
+
+    const rawText = `Delivered-To: ${user.email}
+From: ${message.sender_name ? `${message.sender_name} <${message.sender_email}>` : message.sender_email}
+To: ${user.email}
+Subject: ${message.subject}
+Date: ${new Date(message.received_at).toUTCString()}
+Content-Type: text/html; charset=utf-8
+
+${message.body_html || message.body_text || ""}`;
+
+    return new Response(rawText, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" }
+    });
+  })
+  .delete("/api/duty/messages/:id", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const message = await env.DB.prepare(
+      "SELECT id, raw_r2_key, attachments_json FROM messages WHERE id = ? AND account_id = ?"
+    ).bind(params.id, user.id).first<{ id: string; raw_r2_key: string | null; attachments_json: string | null }>();
+
+    if (!message) {
+      set.status = 404;
+      return { error: "Message not found" };
+    }
+
+    const r2Keys: string[] = [];
+    if (message.raw_r2_key) r2Keys.push(message.raw_r2_key);
+    if (message.attachments_json) {
+      try {
+        const atts = JSON.parse(message.attachments_json) as { r2Key?: string }[];
+        for (const att of atts) {
+          if (att.r2Key) r2Keys.push(att.r2Key);
+        }
+      } catch {}
+    }
+
+    if (r2Keys.length > 0) {
+      await env.STORAGE.delete(r2Keys);
+    }
+
+    await env.DB.prepare("DELETE FROM messages WHERE id = ?").bind(params.id).run();
+
+    return { success: true };
+  })
+  .get("/api/duty/messages/:id/attachments/:attId", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const message = await env.DB.prepare(
+      "SELECT attachments_json FROM messages WHERE id = ? AND account_id = ?"
+    ).bind(params.id, user.id).first<{ attachments_json: string | null }>();
+
+    if (!message || !message.attachments_json) {
+      set.status = 404;
+      return { error: "Message or attachment not found" };
+    }
+
+    let attachments: AttachmentMeta[] = [];
+    try {
+      attachments = JSON.parse(message.attachments_json);
+    } catch {
+      set.status = 500;
+      return { error: "Corrupted attachment metadata" };
+    }
+
+    const target = attachments.find((a) => a.id === params.attId);
+    if (!target || !target.r2Key) {
+      set.status = 404;
+      return { error: "Attachment not found" };
+    }
+
+    const object = await env.STORAGE.get(target.r2Key);
+    if (!object || !object.body) {
+      set.status = 404;
+      return { error: "Attachment file not found in storage" };
+    }
+
+    const headers = new Headers();
+    headers.set("Content-Type", target.mimeType || "application/octet-stream");
+    headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(target.filename)}"`);
+    if (object.size) {
+      headers.set("Content-Length", object.size.toString());
+    }
+
+    return new Response(object.body, { headers });
+  })
   .get("/api/messages/:id/source", async ({ params, request, env, set }) => {
     const user = await getAuthUser(request, env);
     if (!user) {

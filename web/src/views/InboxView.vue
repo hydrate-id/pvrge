@@ -34,6 +34,7 @@ const session = useSession();
 const { activeAccount, dutySession, rateLimitState, handleResponseStatus } = session;
 
 const routePrefix = computed(() => route.path.startsWith('/onduty') ? '/onduty' : '');
+const apiMessagesBase = computed(() => routePrefix.value === '/onduty' ? '/api/duty/messages' : '/api/messages');
 
 const currentAccount = computed(() => {
   if (routePrefix.value === '/onduty') {
@@ -263,7 +264,7 @@ async function fetchMessages(quiet = false) {
 
   if (!quiet) isLoadingList.value = true;
   try {
-    const res = await fetch('/api/messages');
+    const res = await fetch(apiMessagesBase.value);
     if (res.status === 429) {
       handleResponseStatus(res, 'Polling rate limit reached. Auto-refresh paused.');
       return;
@@ -318,7 +319,7 @@ async function fetchMessageDetail(id) {
 
   isLoadingDetail.value = true;
   try {
-    const res = await fetch(`/api/messages/${id}`);
+    const res = await fetch(`${apiMessagesBase.value}/${id}`);
     if (!res.ok) throw new Error('Failed to fetch message detail');
     const data = await res.json();
     selectedMessageDetail.value = {
@@ -340,7 +341,7 @@ async function fetchSource(id) {
 
   isLoadingDetail.value = true;
   try {
-    const res = await fetch(`/api/messages/${id}/source`);
+    const res = await fetch(`${apiMessagesBase.value}/${id}/source`);
     if (res.ok) {
       rawSourceText.value = await res.text();
     }
@@ -471,7 +472,7 @@ async function confirmDeleteMessage() {
 
   isDeleting.value = true;
   try {
-    const res = await fetch(`/api/messages/${id}`, {
+    const res = await fetch(`${apiMessagesBase.value}/${id}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
@@ -502,7 +503,7 @@ async function downloadAttachment(att) {
 
   isDownloadingAttachment.value[att.id] = true;
   try {
-    const res = await fetch(`/api/messages/${msgId}/attachments/${att.id}`);
+    const res = await fetch(`${apiMessagesBase.value}/${msgId}/attachments/${att.id}`);
     if (!res.ok) throw new Error('Download failed');
 
     const blob = await res.blob();
