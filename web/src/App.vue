@@ -18,6 +18,7 @@ import {
 import SignOut from '@primeicons/vue/sign-out';
 import User from '@primeicons/vue/user';
 import Users from '@primeicons/vue/users';
+import Comments from '@primeicons/vue/comments';
 import SignIn from '@primeicons/vue/sign-in';
 import Trash from '@primeicons/vue/trash';
 import Times from '@primeicons/vue/times';
@@ -321,6 +322,17 @@ onUnmounted(() => {
             Users
           </router-link>
 
+          <router-link
+            v-if="isOnDuty"
+            to="/onduty/support"
+            @click="mobileMenuOpen = false"
+            class="group flex items-center rounded-md px-2 py-2 text-sm font-medium transition"
+            :class="route.path.startsWith('/onduty/support') ? 'bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800/50'"
+          >
+            <Comments class="mr-3 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            Support
+          </router-link>
+
           <button
             type="button"
             @click="handleRefresh(); mobileMenuOpen = false;"
@@ -416,6 +428,16 @@ onUnmounted(() => {
           >
             <Users class="mr-3 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
             Users
+          </router-link>
+
+          <router-link
+            v-if="isOnDuty"
+            to="/onduty/support"
+            class="group flex items-center rounded-md px-2 py-2 text-sm font-medium transition"
+            :class="route.path.startsWith('/onduty/support') ? 'bg-gray-100 dark:bg-gray-800/75 text-gray-900 dark:text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800/50'"
+          >
+            <Comments class="mr-3 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            Support
           </router-link>
 
           <button

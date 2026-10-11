@@ -6,6 +6,7 @@ import TermsView from '../views/TermsView.vue';
 import ContactView from '../views/ContactView.vue';
 import AdminLoginView from '../views/AdminLoginView.vue';
 import AdminUsersView from '../views/AdminUsersView.vue';
+import AdminSupportView from '../views/AdminSupportView.vue';
 import { useSession } from '../composables/useSession';
 
 const routes = [
@@ -16,6 +17,7 @@ const routes = [
   { path: '/onduty/view/:id', name: 'onduty-message-detail', component: InboxView },
   { path: '/onduty/view/:id/source', name: 'onduty-message-source', component: InboxView },
   { path: '/onduty/users', name: 'onduty-users', component: AdminUsersView },
+  { path: '/onduty/support', name: 'onduty-support', component: AdminSupportView },
   { path: '/onduty/login', name: 'onduty-login', component: AdminLoginView },
   { path: '/faq', name: 'faq', component: FaqView },
   { path: '/privacy', name: 'privacy', component: PrivacyView },
