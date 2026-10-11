@@ -3,6 +3,7 @@ import { cors } from "@elysiajs/cors";
 import { email } from "./email";
 import type { Account, AttachmentMeta, Domain, Env, Message } from "./types";
 import { createJwt, generatePassword, hashPassword, signJWT, verifyJWT, verifyPassword } from "./crypto";
+import { isDutyEmail } from "./admin";
 import { generateUsername, getRandomDomain } from "./generator";
 import {
   checkRateLimit,
@@ -277,7 +278,8 @@ export const app = new Elysia({ aot: false })
       exp: Math.floor(Date.now() / 1000) + 7 * 24 * 3600
     }, secret);
 
-    if (email === "support@pvrge.com") {
+    const isDuty = await isDutyEmail(env.DB, email);
+    if (isDuty) {
       set.headers["Set-Cookie"] = buildSetCookie("pvrge_duty_session", token, {
         maxAge: 86400,
         sameSite: "Strict",
@@ -317,11 +319,108 @@ export const app = new Elysia({ aot: false })
   })
   .get("/api/duty/me", async ({ request, env, set }) => {
     const user = await getAuthUser(request, env);
-    if (user && user.email === "support@pvrge.com") {
-      return { authenticated: true, email: "support@pvrge.com" };
+    if (user && (await isDutyEmail(env.DB, user.email))) {
+      return { authenticated: true, email: user.email };
     }
     set.status = 401;
     return { authenticated: false };
+  })
+  .post("/api/duty/change-password", async ({ body, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const reqBody = (body || {}) as { currentPassword?: string; newPassword?: string };
+    const { currentPassword, newPassword } = reqBody;
+
+    if (!currentPassword || !newPassword) {
+      set.status = 400;
+      return { error: "Current password and new password are required" };
+    }
+
+    if (newPassword.length < 6) {
+      set.status = 400;
+      return { error: "New password must be at least 6 characters" };
+    }
+
+    const account = await env.DB.prepare(
+      "SELECT id, password_hash, password_salt FROM accounts WHERE id = ?"
+    ).bind(user.id).first<{ id: string; password_hash: string; password_salt: string }>();
+
+    if (!account) {
+      set.status = 404;
+      return { error: "Account not found" };
+    }
+
+    const valid = await verifyPassword(currentPassword, account.password_hash, account.password_salt);
+    if (!valid) {
+      set.status = 400;
+      return { error: "Invalid current password" };
+    }
+
+    const { hash, salt } = await hashPassword(newPassword);
+    await env.DB.prepare(
+      "UPDATE accounts SET password_hash = ?, password_salt = ? WHERE id = ?"
+    ).bind(hash, salt, user.id).run();
+
+    return { success: true };
+  })
+  .post("/api/duty/accounts", async ({ body, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const reqBody = (body || {}) as { email?: string; password?: string };
+    const targetEmail = reqBody.email?.trim().toLowerCase();
+    const targetPassword = reqBody.password;
+
+    if (!targetEmail || !targetPassword) {
+      set.status = 400;
+      return { error: "Email and password are required" };
+    }
+
+    if (targetPassword.length < 6) {
+      set.status = 400;
+      return { error: "Password must be at least 6 characters" };
+    }
+
+    const existing = await env.DB.prepare(
+      "SELECT id FROM accounts WHERE email = ?"
+    ).bind(targetEmail).first();
+
+    if (existing) {
+      set.status = 409;
+      return { error: "Account already exists" };
+    }
+
+    const id = crypto.randomUUID();
+    const { hash, salt } = await hashPassword(targetPassword);
+    const createdAt = new Date().toISOString();
+
+    await env.DB.prepare(
+      "INSERT INTO accounts (id, email, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?)"
+    ).bind(id, targetEmail, hash, salt, createdAt).run();
+
+    await env.DB.prepare(
+      "INSERT INTO duty_accounts (email, created_at) VALUES (?, datetime('now'))"
+    ).bind(targetEmail).run();
+
+    set.status = 201;
+    return { success: true, account: { id, email: targetEmail } };
   })
   .post("/api/auth/switch", async ({ body, request, env, set }) => {
     const reqBody = (body || {}) as { accountId?: string };
@@ -449,21 +548,92 @@ export const app = new Elysia({ aot: false })
       return { error: "Unauthorized" };
     }
 
-    if (user.email !== "support@pvrge.com") {
+    if (!(await isDutyEmail(env.DB, user.email))) {
       set.status = 403;
       return { error: "Forbidden: Admin access required" };
     }
 
     const result = await env.DB.prepare(
-      `SELECT a.id, a.email, a.created_at, COUNT(m.id) as message_count
+      `SELECT a.id, a.email, a.created_at, COUNT(m.id) as message_count,
+              CASE WHEN d.email IS NOT NULL THEN 1 ELSE 0 END as is_duty
        FROM accounts a
        LEFT JOIN messages m ON a.id = m.account_id
-       GROUP BY a.id, a.email, a.created_at
-       ORDER BY a.created_at DESC;`
-    ).all<{ id: string; email: string; created_at: string; message_count: number }>();
+       LEFT JOIN duty_accounts d ON a.email = d.email
+       GROUP BY a.id ORDER BY a.created_at DESC`
+    ).all<{ id: string; email: string; created_at: string; message_count: number; is_duty: number }>();
 
-    const users = result.results || [];
+    const users = (result.results || []).map((u) => ({
+      ...u,
+      is_duty: Boolean(u.is_duty)
+    }));
     return { users, total: users.length };
+  })
+  .post("/api/admin/users/bulk-delete", async ({ body, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Admin access required" };
+    }
+
+    const reqBody = (body || {}) as { userIds?: string[] };
+    const userIds = Array.isArray(reqBody.userIds) ? reqBody.userIds : [];
+
+    if (userIds.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    // Ambil semua ID akun duty dan user yang sedang login agar tidak terhapus
+    const dutyRows = await env.DB.prepare(
+      "SELECT id FROM accounts WHERE email = 'support@pvrge.com' OR email IN (SELECT email FROM duty_accounts)"
+    ).all<{ id: string }>();
+
+    const protectedIds = new Set<string>((dutyRows.results || []).map((r) => r.id));
+    protectedIds.add(user.id);
+
+    const targetIds = Array.from(new Set(userIds)).filter((id) => id && !protectedIds.has(id));
+
+    let deletedCount = 0;
+    for (const targetId of targetIds) {
+      const target = await env.DB.prepare(
+        "SELECT id FROM accounts WHERE id = ?"
+      ).bind(targetId).first<{ id: string }>();
+
+      if (!target) continue;
+
+      const messages = await env.DB.prepare(
+        "SELECT id, raw_r2_key, attachments_json FROM messages WHERE account_id = ?"
+      ).bind(target.id).all<{ id: string; raw_r2_key: string | null; attachments_json: string | null }>();
+
+      const r2Keys: string[] = [];
+      if (messages.results) {
+        for (const msg of messages.results) {
+          if (msg.raw_r2_key) r2Keys.push(msg.raw_r2_key);
+          if (msg.attachments_json) {
+            try {
+              const atts = JSON.parse(msg.attachments_json) as { r2Key?: string }[];
+              for (const att of atts) {
+                if (att.r2Key) r2Keys.push(att.r2Key);
+              }
+            } catch {}
+          }
+        }
+      }
+
+      if (r2Keys.length > 0) {
+        await env.STORAGE.delete(r2Keys);
+      }
+
+      await env.DB.prepare("DELETE FROM messages WHERE account_id = ?").bind(target.id).run();
+      await env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(target.id).run();
+      deletedCount++;
+    }
+
+    return { success: true, count: deletedCount };
   })
   .delete("/api/admin/users/:id", async ({ params, request, env, set }) => {
     const user = await getAuthUser(request, env);
@@ -472,7 +642,7 @@ export const app = new Elysia({ aot: false })
       return { error: "Unauthorized" };
     }
 
-    if (user.email !== "support@pvrge.com") {
+    if (!(await isDutyEmail(env.DB, user.email))) {
       set.status = 403;
       return { error: "Forbidden: Admin access required" };
     }
@@ -486,9 +656,9 @@ export const app = new Elysia({ aot: false })
       return { error: "User not found" };
     }
 
-    if (target.email === "support@pvrge.com") {
+    if (await isDutyEmail(env.DB, target.email)) {
       set.status = 400;
-      return { error: "Cannot delete admin account" };
+      return { error: "Cannot delete duty account" };
     }
 
     const messages = await env.DB.prepare(

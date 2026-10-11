@@ -17,6 +17,11 @@ CREATE TABLE IF NOT EXISTS accounts (
     created_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS duty_accounts (
+    email TEXT PRIMARY KEY,
+    created_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
     account_id TEXT REFERENCES accounts(id) ON DELETE CASCADE,
