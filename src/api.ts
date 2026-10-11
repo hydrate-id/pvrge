@@ -47,15 +47,21 @@ function parseCookies(header: string | null): Record<string, string> {
   return cookies;
 }
 
+function shouldSetSecureCookie(request: Request, env: Env): boolean {
+  if (isRateLimitBypassed(env, request)) return false;
+  return request.url.startsWith("https://");
+}
+
 function buildSetCookie(
   name: string,
   value: string,
-  options: { maxAge?: number; sameSite?: "Lax" | "Strict"; path?: string } = {}
+  options: { maxAge?: number; sameSite?: "Lax" | "Strict"; path?: string; secure?: boolean } = {}
 ): string {
   const maxAge = options.maxAge !== undefined ? options.maxAge : 604800;
   const sameSite = options.sameSite || "Lax";
   const path = options.path || "/";
-  return `${name}=${value}; HttpOnly; Secure; SameSite=${sameSite}; Path=${path}; Max-Age=${maxAge}`;
+  const securePart = options.secure ? "; Secure" : "";
+  return `${name}=${value}; HttpOnly${securePart}; SameSite=${sameSite}; Path=${path}; Max-Age=${maxAge}`;
 }
 
 async function getAuthUser(reqOrHeaders: Request | Headers, env: Env) {
@@ -211,7 +217,11 @@ export const app = new Elysia({ aot: false })
       exp: Math.floor(Date.now() / 1000) + 7 * 24 * 3600
     }, secret);
 
-    set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", token, { maxAge: 604800, sameSite: "Lax" });
+    set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", token, {
+      maxAge: 604800,
+      sameSite: "Lax",
+      secure: shouldSetSecureCookie(request, env)
+    });
     set.status = 201;
     return {
       id,
@@ -268,9 +278,17 @@ export const app = new Elysia({ aot: false })
     }, secret);
 
     if (email === "support@pvrge.com") {
-      set.headers["Set-Cookie"] = buildSetCookie("pvrge_duty_session", token, { maxAge: 86400, sameSite: "Strict" });
+      set.headers["Set-Cookie"] = buildSetCookie("pvrge_duty_session", token, {
+        maxAge: 86400,
+        sameSite: "Strict",
+        secure: shouldSetSecureCookie(request, env)
+      });
     } else {
-      set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", token, { maxAge: 604800, sameSite: "Lax" });
+      set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", token, {
+        maxAge: 604800,
+        sameSite: "Lax",
+        secure: shouldSetSecureCookie(request, env)
+      });
     }
 
     return {
@@ -281,12 +299,20 @@ export const app = new Elysia({ aot: false })
       }
     };
   })
-  .post("/api/auth/logout", async ({ set }) => {
-    set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", "", { maxAge: 0, sameSite: "Lax" });
+  .post("/api/auth/logout", async ({ request, env, set }) => {
+    set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", "", {
+      maxAge: 0,
+      sameSite: "Lax",
+      secure: shouldSetSecureCookie(request, env)
+    });
     return { success: true };
   })
-  .post("/api/auth/duty-logout", async ({ set }) => {
-    set.headers["Set-Cookie"] = buildSetCookie("pvrge_duty_session", "", { maxAge: 0, sameSite: "Strict" });
+  .post("/api/auth/duty-logout", async ({ request, env, set }) => {
+    set.headers["Set-Cookie"] = buildSetCookie("pvrge_duty_session", "", {
+      maxAge: 0,
+      sameSite: "Strict",
+      secure: shouldSetSecureCookie(request, env)
+    });
     return { success: true };
   })
   .get("/api/duty/me", async ({ request, env, set }) => {
@@ -297,7 +323,7 @@ export const app = new Elysia({ aot: false })
     set.status = 401;
     return { authenticated: false };
   })
-  .post("/api/auth/switch", async ({ body, env, set }) => {
+  .post("/api/auth/switch", async ({ body, request, env, set }) => {
     const reqBody = (body || {}) as { accountId?: string };
     const accountId = reqBody.accountId;
     if (!accountId) {
@@ -311,7 +337,11 @@ export const app = new Elysia({ aot: false })
 
     if (target && target.email !== "support@pvrge.com") {
       const token = await createJwt({ sub: target.id, email: target.email }, env.JWT_SECRET || getJwtSecret(env));
-      set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", token, { maxAge: 604800, sameSite: "Lax" });
+      set.headers["Set-Cookie"] = buildSetCookie("pvrge_session", token, {
+        maxAge: 604800,
+        sameSite: "Lax",
+        secure: shouldSetSecureCookie(request, env)
+      });
       return { success: true, account: { id: target.id, email: target.email } };
     } else {
       set.status = 404;
