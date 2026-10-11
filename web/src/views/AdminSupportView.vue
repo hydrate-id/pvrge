@@ -516,46 +516,56 @@ onUnmounted(() => {
             </div>
 
             <!-- Message Bubbles -->
-            <div
-              v-for="msg in messages"
-              :key="msg.id"
-              class="flex flex-col"
-              :class="msg.sender_type === 'operator' ? 'items-end' : 'items-start'"
-            >
-              <!-- Sender label & time -->
-              <div class="flex items-center gap-1.5 mb-1 text-[11px] text-gray-400 px-1">
-                <span class="font-medium" :class="msg.sender_type === 'operator' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-300'">
-                  {{ msg.sender_type === 'operator' ? 'Operator' : (msg.sender_name || 'User') }}
-                </span>
-                <span>•</span>
-                <span>{{ formatMessageTime(msg.created_at) }}</span>
+            <template v-for="msg in messages" :key="msg.id">
+              <!-- System divider (New Case) -->
+              <div v-if="msg.sender_type === 'system'" class="my-4 flex items-center justify-center">
+                <div class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 shadow-xs">
+                  <span>{{ msg.content.replace(/---/g, '').trim() }}</span>
+                  <span class="text-gray-400 dark:text-gray-500 font-normal">&middot; {{ formatMessageTime(msg.created_at) }}</span>
+                </div>
               </div>
 
-              <!-- Message Bubble -->
+              <!-- User or Operator Message -->
               <div
-                class="max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-2.5 text-xs shadow-xs break-words whitespace-pre-wrap leading-relaxed"
-                :class="[
-                  msg.sender_type === 'operator'
-                    ? 'bg-emerald-600 text-white rounded-tr-xs'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-tl-xs border border-gray-200/50 dark:border-gray-700/50'
-                ]"
+                v-else
+                class="flex flex-col"
+                :class="msg.sender_type === 'operator' ? 'items-end' : 'items-start'"
               >
-                {{ msg.content }}
-              </div>
+                <!-- Sender label & time -->
+                <div class="flex items-center gap-1.5 mb-1 text-[11px] text-gray-400 px-1">
+                  <span class="font-medium" :class="msg.sender_type === 'operator' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-300'">
+                    {{ msg.sender_type === 'operator' ? 'Operator' : (msg.sender_name || 'User') }}
+                  </span>
+                  <span>•</span>
+                  <span>{{ formatMessageTime(msg.created_at) }}</span>
+                </div>
 
-              <!-- Status indicator for operator messages -->
-              <div
-                v-if="msg.sender_type === 'operator'"
-                class="text-[10px] text-gray-400 mt-0.5 px-1 flex items-center gap-1"
-              >
-                <span v-if="msg.is_sent_to_telegram === 1" class="text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
-                  <Check class="size-2.5" /> Sent to Telegram
-                </span>
-                <span v-else class="text-gray-400">
-                  Pending Telegram sync
-                </span>
+                <!-- Message Bubble -->
+                <div
+                  class="max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-2.5 text-xs shadow-xs break-words whitespace-pre-wrap leading-relaxed"
+                  :class="[
+                    msg.sender_type === 'operator'
+                      ? 'bg-emerald-600 text-white rounded-tr-xs'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-tl-xs border border-gray-200/50 dark:border-gray-700/50'
+                  ]"
+                >
+                  {{ msg.content }}
+                </div>
+
+                <!-- Status indicator for operator messages -->
+                <div
+                  v-if="msg.sender_type === 'operator'"
+                  class="text-[10px] text-gray-400 mt-0.5 px-1 flex items-center gap-1"
+                >
+                  <span v-if="msg.is_sent_to_telegram === 1" class="text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                    <Check class="size-2.5" /> Sent to Telegram
+                  </span>
+                  <span v-else class="text-gray-400">
+                    Pending Telegram sync
+                  </span>
+                </div>
               </div>
-            </div>
+            </template>
           </div>
 
           <!-- Reply Box / Textarea Form -->
