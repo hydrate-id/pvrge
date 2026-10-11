@@ -1047,14 +1047,14 @@ ${message.body_html || message.body_text || ""}`;
       await sendTelegramMessage(
         env.TELEGRAM_BOT_TOKEN,
         chatId,
-        "Halo! Selamat datang di layanan dukungan pvrge. Silakan kirimkan pertanyaan atau kendala Anda di sini, tim kami siap membantu."
+        "Hello! Welcome to pvrge support desk. Feel free to describe your issue or inquiry here, and our on-duty team will assist you shortly."
       );
     }
 
     const snippet = text.slice(0, 100) || "[Media]";
     const existing = await env.DB.prepare(
-      "SELECT id FROM support_threads WHERE telegram_chat_id = ?"
-    ).bind(chatId).first<{ id: string }>();
+      "SELECT id, status FROM support_threads WHERE telegram_chat_id = ?"
+    ).bind(chatId).first<{ id: string; status: string }>();
 
     let threadId = existing?.id;
     if (!threadId) {
@@ -1069,6 +1069,22 @@ ${message.body_html || message.body_text || ""}`;
         threadId, chatId, userId, username, firstName, lastName, snippet
       ).run();
     } else {
+      if (existing.status === "resolved") {
+        await env.DB.prepare(`
+          INSERT INTO support_messages (
+            id, thread_id, sender_type, sender_name, content, telegram_message_id, is_sent_to_telegram, created_at
+          ) VALUES (?, ?, 'system', 'System', '--- New Case Opened ---', null, 1, datetime('now'))
+        `).bind(crypto.randomUUID(), threadId).run();
+
+        if (env.TELEGRAM_BOT_TOKEN) {
+          await sendTelegramMessage(
+            env.TELEGRAM_BOT_TOKEN,
+            chatId,
+            "A new support request has been opened. Our on-duty team will assist you shortly."
+          );
+        }
+      }
+
       await env.DB.prepare(`
         UPDATE support_threads SET
           telegram_user_id = ?,
@@ -1259,8 +1275,8 @@ ${message.body_html || message.body_text || ""}`;
     }
 
     const thread = await env.DB.prepare(
-      "SELECT id FROM support_threads WHERE id = ?"
-    ).bind(params.id).first<{ id: string }>();
+      "SELECT id, telegram_chat_id FROM support_threads WHERE id = ?"
+    ).bind(params.id).first<{ id: string; telegram_chat_id: string | null }>();
 
     if (!thread) {
       set.status = 404;
@@ -1270,6 +1286,19 @@ ${message.body_html || message.body_text || ""}`;
     await env.DB.prepare(
       "UPDATE support_threads SET status = ?, updated_at = datetime('now') WHERE id = ?"
     ).bind(status, params.id).run();
+
+    if (status === "resolved") {
+      const resolutionText = "Your support request has been marked as resolved by our on-duty team. If you need any further assistance, feel free to message us again anytime.";
+      if (env.TELEGRAM_BOT_TOKEN && thread.telegram_chat_id) {
+        await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, thread.telegram_chat_id, resolutionText);
+      }
+      // Catat pesan resolution di support_messages:
+      await env.DB.prepare(`
+        INSERT INTO support_messages (
+          id, thread_id, sender_type, sender_name, content, telegram_message_id, is_sent_to_telegram, created_at
+        ) VALUES (?, ?, 'operator', ?, ?, null, 1, datetime('now'))
+      `).bind(crypto.randomUUID(), params.id, user.email, resolutionText).run();
+    }
 
     return { success: true, status };
   });
