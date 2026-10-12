@@ -529,7 +529,13 @@ async function downloadAttachment(att, customMsgId = null) {
 function parseTimelineTime(val) {
   if (!val) return 0;
   if (typeof val === 'number') return val;
-  const t = new Date(val).getTime();
+  let str = String(val).trim();
+  if (!str.includes('T') && str.includes(' ')) {
+    str = str.replace(' ', 'T') + 'Z';
+  } else if (!str.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(str)) {
+    str = str + 'Z';
+  }
+  const t = new Date(str).getTime();
   return isNaN(t) ? 0 : t;
 }
 
@@ -543,7 +549,7 @@ const conversationTimeline = computed(() => {
   const incomingItems = rawIncoming.map((msg) => ({
     ...msg,
     timelineType: 'incoming',
-    timestamp: parseTimelineTime(msg.created_at || msg.received_at),
+    timestamp: parseTimelineTime(msg.received_at || msg.created_at),
   }));
 
   const replyItems = (selectedMessageDetail.value.replies || []).map((rep) => ({
