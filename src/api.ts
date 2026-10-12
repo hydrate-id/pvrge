@@ -1082,6 +1082,102 @@ ${message.body_html || message.body_text || ""}`;
 
     return { success: true };
   })
+  .delete("/api/duty/replies/:id", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    await env.DB.prepare("DELETE FROM email_replies WHERE id = ?").bind(params.id).run();
+
+    return { success: true };
+  })
+  .delete("/api/duty/threads/:threadId", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const messages = await env.DB.prepare(
+      "SELECT id, raw_r2_key, attachments_json FROM messages WHERE (thread_id = ? OR id = ?) AND account_id = ?"
+    ).bind(params.threadId, params.threadId, user.id).all<{ id: string; raw_r2_key: string | null; attachments_json: string | null }>();
+
+    const r2Keys: string[] = [];
+    const msgIds: string[] = [];
+    for (const msg of (messages.results || [])) {
+      msgIds.push(msg.id);
+      if (msg.raw_r2_key) r2Keys.push(msg.raw_r2_key);
+      if (msg.attachments_json) {
+        try {
+          const atts = JSON.parse(msg.attachments_json) as { r2Key?: string }[];
+          for (const att of atts) {
+            if (att.r2Key) r2Keys.push(att.r2Key);
+          }
+        } catch {}
+      }
+    }
+
+    if (r2Keys.length > 0) {
+      await env.STORAGE.delete(r2Keys);
+    }
+
+    if (msgIds.length > 0) {
+      const placeholders = msgIds.map(() => "?").join(",");
+      await env.DB.prepare(`DELETE FROM email_replies WHERE message_id IN (${placeholders})`).bind(...msgIds).run();
+      await env.DB.prepare(`DELETE FROM messages WHERE id IN (${placeholders})`).bind(...msgIds).run();
+    }
+
+    return { success: true };
+  })
+  .delete("/api/messages/thread/:threadId", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    const messages = await env.DB.prepare(
+      "SELECT id, raw_r2_key, attachments_json FROM messages WHERE (thread_id = ? OR id = ?) AND account_id = ?"
+    ).bind(params.threadId, params.threadId, user.id).all<{ id: string; raw_r2_key: string | null; attachments_json: string | null }>();
+
+    const r2Keys: string[] = [];
+    const msgIds: string[] = [];
+    for (const msg of (messages.results || [])) {
+      msgIds.push(msg.id);
+      if (msg.raw_r2_key) r2Keys.push(msg.raw_r2_key);
+      if (msg.attachments_json) {
+        try {
+          const atts = JSON.parse(msg.attachments_json) as { r2Key?: string }[];
+          for (const att of atts) {
+            if (att.r2Key) r2Keys.push(att.r2Key);
+          }
+        } catch {}
+      }
+    }
+
+    if (r2Keys.length > 0) {
+      await env.STORAGE.delete(r2Keys);
+    }
+
+    if (msgIds.length > 0) {
+      const placeholders = msgIds.map(() => "?").join(",");
+      await env.DB.prepare(`DELETE FROM messages WHERE id IN (${placeholders})`).bind(...msgIds).run();
+    }
+
+    return { success: true };
+  })
   .get("/api/duty/messages/:id/attachments/:attId", async ({ params, request, env, set }) => {
     const user = await getAuthUser(request, env);
     if (!user) {
@@ -1401,7 +1497,7 @@ ${message.body_html || message.body_text || ""}`;
         threadId, chatId, userId, username, firstName, lastName, snippet
       ).run();
     } else {
-      if (existing.status === "resolved") {
+      if (existing && existing.status === "resolved") {
         await env.DB.prepare(`
           INSERT INTO support_messages (
             id, thread_id, sender_type, sender_name, content, telegram_message_id, is_sent_to_telegram, created_at
