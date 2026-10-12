@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSession } from '../composables/useSession';
 import EnvelopeIllustration from '../components/EnvelopeIllustration.vue';
@@ -73,12 +73,21 @@ const isSendingReply = ref(false);
 const replyError = ref('');
 const replySuccess = ref('');
 
-function openReplyBox() {
-  replySubject.value = 'Re: ' + (selectedMessageDetail.value?.subject || '');
+async function openReplyBox() {
+  const rawSub = selectedMessageDetail.value?.subject || '';
+  const cleanSub = rawSub.replace(/^(\s*(re|fw|fwd)\s*[:;]\s*)+/gi, '').trim();
+  replySubject.value = 'Re: ' + (cleanSub || '(No Subject)');
   replyBody.value = '';
   replyError.value = '';
   replySuccess.value = '';
   showReplyBox.value = true;
+  await nextTick();
+  const el = document.getElementById('reply-box-form');
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const ta = el.querySelector('textarea');
+    if (ta) ta.focus();
+  }
 }
 
 function cancelReply() {
@@ -1927,9 +1936,22 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <!-- Reply Button Trigger (On-Duty mode only) -->
+        <div v-if="isOnDutyMode && !showReplyBox" class="mt-4 flex items-center">
+          <button
+            type="button"
+            @click="openReplyBox"
+            class="inline-flex items-center gap-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-xs sm:text-sm font-semibold shadow-xs transition cursor-pointer"
+          >
+            <Reply class="size-4 shrink-0" />
+            <span>Reply</span>
+          </button>
+        </div>
+
         <!-- Reply Box Section (On-Duty mode only) - tetap berada di bagian paling bawah untuk memudahkan membalas pesan terakhir -->
         <div
           v-if="isOnDutyMode && showReplyBox"
+          id="reply-box-form"
           class="mt-4 overflow-hidden rounded-md border border-gray-200 bg-white p-4 sm:p-6 shadow dark:border-gray-700 dark:bg-gray-800/90"
         >
           <div class="mb-3 flex items-center justify-between">
