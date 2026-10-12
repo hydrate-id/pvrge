@@ -36,6 +36,10 @@ export type AuthStatus = "pass" | "fail" | "none";
 export interface Message {
   id: string;
   account_id: string;
+  thread_id?: string;
+  message_rfc_id?: string | null;
+  in_reply_to?: string | null;
+  references_header?: string | null;
   sender_email: string;
   sender_name: string;
   subject: string;
@@ -48,6 +52,20 @@ export interface Message {
   auth_status: AuthStatus;
   received_at: string;
   expires_at: string;
+  thread_count?: number;
+  replies?: EmailReply[];
+  thread_messages?: Message[];
+}
+
+export interface EmailReply {
+  id: string;
+  message_id: string;
+  sender_email: string;
+  recipient_email: string;
+  subject: string;
+  body: string;
+  message_rfc_id?: string | null;
+  created_at: string;
 }
 
 export interface JWTPayload {
