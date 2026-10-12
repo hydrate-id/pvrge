@@ -540,13 +540,40 @@ export const app = new Elysia({ aot: false })
       return { error: "Rate limit exceeded" };
     }
 
-    const result = await env.DB.prepare(
-      "SELECT id, sender_email, sender_name, subject, snippet, has_attachments, COALESCE(auth_status, 'none') as auth_status, received_at, expires_at FROM messages WHERE account_id = ? AND (expires_at IS NULL OR expires_at > datetime('now')) ORDER BY received_at DESC"
-    ).bind(user.id).all<Message>();
+    const result = await env.DB.prepare(`
+      WITH RankedMessages AS (
+        SELECT 
+          m.*,
+          ROW_NUMBER() OVER (PARTITION BY COALESCE(m.thread_id, m.id) ORDER BY m.received_at DESC) as rn,
+          (
+            SELECT COUNT(*) FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id
+          ) + (
+            SELECT COUNT(*) FROM email_replies r JOIN messages m3 ON r.message_id = m3.id WHERE COALESCE(m3.thread_id, m3.id) = COALESCE(m.thread_id, m.id) AND m3.account_id = m.account_id
+          ) as thread_msg_count
+        FROM messages m
+        WHERE m.account_id = ? AND (m.expires_at IS NULL OR m.expires_at > datetime('now'))
+      )
+      SELECT 
+        id,
+        COALESCE(thread_id, id) as thread_id,
+        sender_email,
+        sender_name,
+        subject,
+        snippet,
+        has_attachments,
+        COALESCE(auth_status, 'none') as auth_status,
+        received_at,
+        expires_at,
+        thread_msg_count as thread_count
+      FROM RankedMessages
+      WHERE rn = 1
+      ORDER BY received_at DESC
+    `).bind(user.id).all<Message>();
 
     const messages = (result.results || []).map((msg) => ({
       ...msg,
-      auth_status: msg.auth_status || "none"
+      auth_status: msg.auth_status || "none",
+      thread_count: Number(msg.thread_count) || 1
     }));
 
     return { messages };
@@ -722,20 +749,49 @@ export const app = new Elysia({ aot: false })
       } catch {}
     }
 
+    const effectiveThreadId = message.thread_id || message.id;
+
+    // Fetch all messages in this thread
+    const threadRows = await env.DB.prepare(`
+      SELECT * FROM messages
+      WHERE (thread_id = ? OR id = ?) AND account_id = ?
+      ORDER BY received_at ASC
+    `).bind(effectiveThreadId, effectiveThreadId, user.id).all<Message>();
+
+    const threadMsgList = threadRows.results || [message];
+    const allMsgIds = threadMsgList.map(m => m.id);
+
     let replies: any[] = [];
-    try {
-      const repRows = await env.DB.prepare(
-        "SELECT id, sender_email, recipient_email, subject, body, created_at FROM email_replies WHERE message_id = ? ORDER BY created_at ASC"
-      ).bind(params.id).all();
-      replies = repRows.results || [];
-    } catch {}
+    if (allMsgIds.length > 0) {
+      const placeholders = allMsgIds.map(() => "?").join(",");
+      try {
+        const repRows = await env.DB.prepare(
+          `SELECT id, message_id, sender_email, recipient_email, subject, body, created_at FROM email_replies WHERE message_id IN (${placeholders}) ORDER BY created_at ASC`
+        ).bind(...allMsgIds).all();
+        replies = repRows.results || [];
+      } catch {}
+    }
+
+    const threadMessages = threadMsgList.map(m => {
+      let atts: AttachmentMeta[] = [];
+      if (m.attachments_json) {
+        try { atts = JSON.parse(m.attachments_json); } catch {}
+      }
+      return {
+        ...m,
+        auth_status: m.auth_status || "none",
+        attachments: atts
+      };
+    });
 
     return {
       message: {
         ...message,
         auth_status: message.auth_status || "none",
         attachments,
-        replies
+        replies,
+        thread_messages: threadMessages,
+        thread_count: threadMessages.length + replies.length
       }
     };
   })
@@ -752,8 +808,8 @@ export const app = new Elysia({ aot: false })
     }
 
     const message = await env.DB.prepare(
-      "SELECT id, sender_email, subject FROM messages WHERE id = ?"
-    ).bind(params.id).first<{ id: string; sender_email: string; subject: string }>();
+      "SELECT id, sender_email, subject, message_rfc_id, references_header, thread_id FROM messages WHERE id = ?"
+    ).bind(params.id).first<{ id: string; sender_email: string; subject: string; message_rfc_id?: string; references_header?: string; thread_id?: string }>();
 
     if (!message) {
       set.status = 404;
@@ -772,6 +828,10 @@ export const app = new Elysia({ aot: false })
     const finalSubject = reqBody.subject?.trim() || (message.subject?.startsWith("Re:") ? message.subject : `Re: ${message.subject || ""}`);
     const formattedBody = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #111827; white-space: pre-wrap;">${escapeHtml(replyText)}</div>`;
 
+    const replyRfcId = `<reply-${crypto.randomUUID()}@pvrge.com>`;
+    const inReplyTo = message.message_rfc_id || `<msg-${message.id}@pvrge.com>`;
+    const references = (message.references_header ? message.references_header + " " : "") + inReplyTo;
+
     const plunkRes = await fetch("https://next-api.useplunk.com/v1/send", {
       method: "POST",
       headers: {
@@ -782,7 +842,12 @@ export const app = new Elysia({ aot: false })
         to,
         subject: finalSubject,
         body: formattedBody,
-        from
+        from,
+        headers: {
+          "Message-ID": replyRfcId,
+          "In-Reply-To": inReplyTo,
+          "References": references
+        }
       })
     });
 
@@ -795,8 +860,8 @@ export const app = new Elysia({ aot: false })
 
     const replyId = crypto.randomUUID();
     await env.DB.prepare(
-      "INSERT INTO email_replies (id, message_id, sender_email, recipient_email, subject, body, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))"
-    ).bind(replyId, message.id, from, to, finalSubject, replyText).run();
+      "INSERT INTO email_replies (id, message_id, sender_email, recipient_email, subject, body, message_rfc_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))"
+    ).bind(replyId, message.id, from, to, finalSubject, replyText, replyRfcId).run();
 
     return { success: true, message: "Reply sent successfully" };
   })
@@ -812,13 +877,40 @@ export const app = new Elysia({ aot: false })
       return { error: "Forbidden: Duty access required" };
     }
 
-    const result = await env.DB.prepare(
-      "SELECT id, sender_email, sender_name, subject, snippet, has_attachments, COALESCE(auth_status, 'none') as auth_status, received_at, expires_at FROM messages WHERE account_id = ? ORDER BY received_at DESC"
-    ).bind(user.id).all<Message>();
+    const result = await env.DB.prepare(`
+      WITH RankedMessages AS (
+        SELECT 
+          m.*,
+          ROW_NUMBER() OVER (PARTITION BY COALESCE(m.thread_id, m.id) ORDER BY m.received_at DESC) as rn,
+          (
+            SELECT COUNT(*) FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id
+          ) + (
+            SELECT COUNT(*) FROM email_replies r JOIN messages m3 ON r.message_id = m3.id WHERE COALESCE(m3.thread_id, m3.id) = COALESCE(m.thread_id, m.id) AND m3.account_id = m.account_id
+          ) as thread_msg_count
+        FROM messages m
+        WHERE m.account_id = ?
+      )
+      SELECT 
+        id,
+        COALESCE(thread_id, id) as thread_id,
+        sender_email,
+        sender_name,
+        subject,
+        snippet,
+        has_attachments,
+        COALESCE(auth_status, 'none') as auth_status,
+        received_at,
+        expires_at,
+        thread_msg_count as thread_count
+      FROM RankedMessages
+      WHERE rn = 1
+      ORDER BY received_at DESC
+    `).bind(user.id).all<Message>();
 
     const messages = (result.results || []).map((msg) => ({
       ...msg,
-      auth_status: msg.auth_status || "none"
+      auth_status: msg.auth_status || "none",
+      thread_count: Number(msg.thread_count) || 1
     }));
 
     return { messages };
@@ -851,20 +943,49 @@ export const app = new Elysia({ aot: false })
       } catch {}
     }
 
+    const effectiveThreadId = message.thread_id || message.id;
+
+    // Fetch all messages in this thread
+    const threadRows = await env.DB.prepare(`
+      SELECT * FROM messages
+      WHERE (thread_id = ? OR id = ?) AND account_id = ?
+      ORDER BY received_at ASC
+    `).bind(effectiveThreadId, effectiveThreadId, user.id).all<Message>();
+
+    const threadMsgList = threadRows.results || [message];
+    const allMsgIds = threadMsgList.map(m => m.id);
+
     let replies: any[] = [];
-    try {
-      const repRows = await env.DB.prepare(
-        "SELECT id, sender_email, recipient_email, subject, body, created_at FROM email_replies WHERE message_id = ? ORDER BY created_at ASC"
-      ).bind(params.id).all();
-      replies = repRows.results || [];
-    } catch {}
+    if (allMsgIds.length > 0) {
+      const placeholders = allMsgIds.map(() => "?").join(",");
+      try {
+        const repRows = await env.DB.prepare(
+          `SELECT id, message_id, sender_email, recipient_email, subject, body, created_at FROM email_replies WHERE message_id IN (${placeholders}) ORDER BY created_at ASC`
+        ).bind(...allMsgIds).all();
+        replies = repRows.results || [];
+      } catch {}
+    }
+
+    const threadMessages = threadMsgList.map(m => {
+      let atts: AttachmentMeta[] = [];
+      if (m.attachments_json) {
+        try { atts = JSON.parse(m.attachments_json); } catch {}
+      }
+      return {
+        ...m,
+        auth_status: m.auth_status || "none",
+        attachments: atts
+      };
+    });
 
     return {
       message: {
         ...message,
         auth_status: message.auth_status || "none",
         attachments,
-        replies
+        replies,
+        thread_messages: threadMessages,
+        thread_count: threadMessages.length + replies.length
       }
     };
   })
@@ -958,6 +1079,102 @@ ${message.body_html || message.body_text || ""}`;
     }
 
     await env.DB.prepare("DELETE FROM messages WHERE id = ?").bind(params.id).run();
+
+    return { success: true };
+  })
+  .delete("/api/duty/replies/:id", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    await env.DB.prepare("DELETE FROM email_replies WHERE id = ?").bind(params.id).run();
+
+    return { success: true };
+  })
+  .delete("/api/duty/threads/:threadId", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    if (!(await isDutyEmail(env.DB, user.email))) {
+      set.status = 403;
+      return { error: "Forbidden: Duty access required" };
+    }
+
+    const messages = await env.DB.prepare(
+      "SELECT id, raw_r2_key, attachments_json FROM messages WHERE (thread_id = ? OR id = ?) AND account_id = ?"
+    ).bind(params.threadId, params.threadId, user.id).all<{ id: string; raw_r2_key: string | null; attachments_json: string | null }>();
+
+    const r2Keys: string[] = [];
+    const msgIds: string[] = [];
+    for (const msg of (messages.results || [])) {
+      msgIds.push(msg.id);
+      if (msg.raw_r2_key) r2Keys.push(msg.raw_r2_key);
+      if (msg.attachments_json) {
+        try {
+          const atts = JSON.parse(msg.attachments_json) as { r2Key?: string }[];
+          for (const att of atts) {
+            if (att.r2Key) r2Keys.push(att.r2Key);
+          }
+        } catch {}
+      }
+    }
+
+    if (r2Keys.length > 0) {
+      await env.STORAGE.delete(r2Keys);
+    }
+
+    if (msgIds.length > 0) {
+      const placeholders = msgIds.map(() => "?").join(",");
+      await env.DB.prepare(`DELETE FROM email_replies WHERE message_id IN (${placeholders})`).bind(...msgIds).run();
+      await env.DB.prepare(`DELETE FROM messages WHERE id IN (${placeholders})`).bind(...msgIds).run();
+    }
+
+    return { success: true };
+  })
+  .delete("/api/messages/thread/:threadId", async ({ params, request, env, set }) => {
+    const user = await getAuthUser(request, env);
+    if (!user) {
+      set.status = 401;
+      return { error: "Unauthorized" };
+    }
+
+    const messages = await env.DB.prepare(
+      "SELECT id, raw_r2_key, attachments_json FROM messages WHERE (thread_id = ? OR id = ?) AND account_id = ?"
+    ).bind(params.threadId, params.threadId, user.id).all<{ id: string; raw_r2_key: string | null; attachments_json: string | null }>();
+
+    const r2Keys: string[] = [];
+    const msgIds: string[] = [];
+    for (const msg of (messages.results || [])) {
+      msgIds.push(msg.id);
+      if (msg.raw_r2_key) r2Keys.push(msg.raw_r2_key);
+      if (msg.attachments_json) {
+        try {
+          const atts = JSON.parse(msg.attachments_json) as { r2Key?: string }[];
+          for (const att of atts) {
+            if (att.r2Key) r2Keys.push(att.r2Key);
+          }
+        } catch {}
+      }
+    }
+
+    if (r2Keys.length > 0) {
+      await env.STORAGE.delete(r2Keys);
+    }
+
+    if (msgIds.length > 0) {
+      const placeholders = msgIds.map(() => "?").join(",");
+      await env.DB.prepare(`DELETE FROM messages WHERE id IN (${placeholders})`).bind(...msgIds).run();
+    }
 
     return { success: true };
   })
@@ -1280,7 +1497,7 @@ ${message.body_html || message.body_text || ""}`;
         threadId, chatId, userId, username, firstName, lastName, snippet
       ).run();
     } else {
-      if (existing.status === "resolved") {
+      if (existing && existing.status === "resolved") {
         await env.DB.prepare(`
           INSERT INTO support_messages (
             id, thread_id, sender_type, sender_name, content, telegram_message_id, is_sent_to_telegram, created_at

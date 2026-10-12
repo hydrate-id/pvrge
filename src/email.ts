@@ -81,16 +81,24 @@ export async function email(
     console.error("Malformed MIME parsing error:", err);
     const envelopeSubject = message.headers.get("subject") || "[Malformed Message]";
     const authStatus = extractAuthStatus(message.headers);
+    const messageRfcId = message.headers.get("message-id") || null;
+    const inReplyTo = message.headers.get("in-reply-to") || null;
+    const referencesHeader = message.headers.get("references") || null;
 
     await env.DB.prepare(
       `INSERT INTO messages (
-        id, account_id, sender_email, sender_name, subject, snippet,
+        id, account_id, thread_id, message_rfc_id, in_reply_to, references_header,
+        sender_email, sender_name, subject, snippet,
         body_text, body_html, raw_r2_key, has_attachments, attachments_json,
         auth_status, received_at, expires_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       messageId,
       account.id,
+      messageId,
+      messageRfcId,
+      inReplyTo,
+      referencesHeader,
       message.from,
       "",
       envelopeSubject,
@@ -146,16 +154,104 @@ export async function email(
   const snippet = (bodyText.replace(/\s+/g, " ").trim() || subject).slice(0, 150);
   const authStatus = extractAuthStatus(message.headers);
 
+  const messageRfcId = parsed.messageId || message.headers.get("message-id") || null;
+  const inReplyTo = parsed.inReplyTo || message.headers.get("in-reply-to") || null;
+  const rawRefs = parsed.references || message.headers.get("references") || null;
+  const referencesHeader = Array.isArray(rawRefs) ? rawRefs.join(" ") : (rawRefs || null);
+
+  let threadId: string | null = null;
+
+  // 1. Check In-Reply-To
+  if (inReplyTo) {
+    const cleanInReplyTo = inReplyTo.trim();
+    const matchedMsg = await env.DB.prepare(
+      "SELECT thread_id FROM messages WHERE message_rfc_id = ? AND account_id = ?"
+    ).bind(cleanInReplyTo, account.id).first<{ thread_id: string }>();
+
+    if (matchedMsg?.thread_id) {
+      threadId = matchedMsg.thread_id;
+    } else {
+      const matchedReply = await env.DB.prepare(`
+        SELECT m.thread_id FROM email_replies r
+        JOIN messages m ON r.message_id = m.id
+        WHERE r.message_rfc_id = ? AND m.account_id = ?
+      `).bind(cleanInReplyTo, account.id).first<{ thread_id: string }>();
+
+      if (matchedReply?.thread_id) {
+        threadId = matchedReply.thread_id;
+      }
+    }
+  }
+
+  // 2. Check References header tokens
+  if (!threadId && referencesHeader) {
+    const refTokens = referencesHeader.match(/<[^>]+>/g) || referencesHeader.split(/\s+/).filter(Boolean);
+    for (let i = refTokens.length - 1; i >= 0; i--) {
+      const token = refTokens[i].trim();
+      const matchedMsg = await env.DB.prepare(
+        "SELECT thread_id FROM messages WHERE message_rfc_id = ? AND account_id = ?"
+      ).bind(token, account.id).first<{ thread_id: string }>();
+
+      if (matchedMsg?.thread_id) {
+        threadId = matchedMsg.thread_id;
+        break;
+      }
+
+      const matchedReply = await env.DB.prepare(`
+        SELECT m.thread_id FROM email_replies r
+        JOIN messages m ON r.message_id = m.id
+        WHERE r.message_rfc_id = ? AND m.account_id = ?
+      `).bind(token, account.id).first<{ thread_id: string }>();
+
+      if (matchedReply?.thread_id) {
+        threadId = matchedReply.thread_id;
+        break;
+      }
+    }
+  }
+
+  // 3. Fallback: Subject matching within account in past 14 days
+  if (!threadId) {
+    const cleanSubject = subject.replace(/^(\s*(re|fw|fwd)\s*[:;]\s*)+/gi, "").trim();
+    if (cleanSubject && cleanSubject.length > 3) {
+      const matchedSubject = await env.DB.prepare(`
+        SELECT thread_id FROM messages
+        WHERE account_id = ?
+          AND (sender_email = ? OR sender_email = ?)
+          AND received_at > datetime('now', '-14 days')
+          AND (
+            subject = ? OR
+            subject LIKE ?
+          )
+        ORDER BY received_at DESC LIMIT 1
+      `).bind(account.id, senderEmail, message.from, subject, `%${cleanSubject}%`).first<{ thread_id: string }>();
+
+      if (matchedSubject?.thread_id) {
+        threadId = matchedSubject.thread_id;
+      }
+    }
+  }
+
+  // 4. Default: New thread
+  if (!threadId) {
+    threadId = messageId;
+  }
+
   // Insert into D1 messages
   await env.DB.prepare(
     `INSERT INTO messages (
-      id, account_id, sender_email, sender_name, subject, snippet,
+      id, account_id, thread_id, message_rfc_id, in_reply_to, references_header,
+      sender_email, sender_name, subject, snippet,
       body_text, body_html, raw_r2_key, has_attachments, attachments_json,
       auth_status, received_at, expires_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     messageId,
     account.id,
+    threadId,
+    messageRfcId,
+    inReplyTo,
+    referencesHeader,
     senderEmail,
     senderName,
     subject,

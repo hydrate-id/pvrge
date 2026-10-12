@@ -1,10 +1,11 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSession } from '../composables/useSession';
 import EnvelopeIllustration from '../components/EnvelopeIllustration.vue';
 import Envelope from '@primeicons/vue/envelope';
 import ChevronRight from '@primeicons/vue/chevron-right';
+import ChevronDown from '@primeicons/vue/chevron-down';
 import Spinner from '@primeicons/vue/spinner';
 import Paperclip from '@primeicons/vue/paperclip';
 import Times from '@primeicons/vue/times';
@@ -72,12 +73,21 @@ const isSendingReply = ref(false);
 const replyError = ref('');
 const replySuccess = ref('');
 
-function openReplyBox() {
-  replySubject.value = 'Re: ' + (selectedMessageDetail.value?.subject || '');
+async function openReplyBox() {
+  const rawSub = selectedMessageDetail.value?.subject || '';
+  const cleanSub = rawSub.replace(/^(\s*(re|fw|fwd)\s*[:;]\s*)+/gi, '').trim();
+  replySubject.value = 'Re: ' + (cleanSub || '(No Subject)');
   replyBody.value = '';
   replyError.value = '';
   replySuccess.value = '';
   showReplyBox.value = true;
+  await nextTick();
+  const el = document.getElementById('reply-box-form');
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const ta = el.querySelector('textarea');
+    if (ta) ta.focus();
+  }
 }
 
 function cancelReply() {
@@ -497,8 +507,8 @@ async function confirmDeleteMessage() {
   }
 }
 
-async function downloadAttachment(att) {
-  const msgId = selectedMessageId.value;
+async function downloadAttachment(att, customMsgId = null) {
+  const msgId = customMsgId || selectedMessageId.value;
   if (!isAuthenticated.value || !msgId || !att?.id) return;
 
   isDownloadingAttachment.value[att.id] = true;
@@ -526,8 +536,252 @@ async function downloadAttachment(att) {
   }
 }
 
-const safeIframeContent = computed(() => {
-  if (!selectedMessageDetail.value) return '';
+function parseTimelineTime(val) {
+  if (!val) return 0;
+  if (typeof val === 'number') return val;
+  let str = String(val).trim();
+  if (!str.includes('T') && str.includes(' ')) {
+    str = str.replace(' ', 'T') + 'Z';
+  } else if (!str.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(str)) {
+    str = str + 'Z';
+  }
+  const t = new Date(str).getTime();
+  return isNaN(t) ? 0 : t;
+}
+
+const conversationTimeline = computed(() => {
+  if (!selectedMessageDetail.value) return [];
+
+  const rawIncoming = (selectedMessageDetail.value.thread_messages && selectedMessageDetail.value.thread_messages.length > 0)
+    ? selectedMessageDetail.value.thread_messages
+    : [selectedMessageDetail.value];
+
+  const incomingItems = rawIncoming.map((msg) => ({
+    ...msg,
+    timelineType: 'incoming',
+    timestamp: parseTimelineTime(msg.received_at || msg.created_at),
+  }));
+
+  const replyItems = (selectedMessageDetail.value.replies || []).map((rep) => ({
+    ...rep,
+    timelineType: 'reply',
+    timestamp: parseTimelineTime(rep.created_at),
+  }));
+
+  return [...incomingItems, ...replyItems].sort((a, b) => a.timestamp - b.timestamp);
+});
+
+const expandedEntries = ref(new Set());
+
+function isEntryExpanded(id) {
+  return expandedEntries.value.has(id);
+}
+
+function toggleEntry(id) {
+  if (expandedEntries.value.has(id)) {
+    expandedEntries.value.delete(id);
+  } else {
+    expandedEntries.value.add(id);
+  }
+}
+
+function expandAllEntries() {
+  for (const item of conversationTimeline.value) {
+    expandedEntries.value.add(item.id);
+  }
+  showActionsMenu.value = false;
+}
+
+function collapseAllEntries() {
+  expandedEntries.value.clear();
+  if (conversationTimeline.value.length > 0) {
+    expandedEntries.value.add(conversationTimeline.value[conversationTimeline.value.length - 1].id);
+  }
+  showActionsMenu.value = false;
+}
+
+watch(
+  conversationTimeline,
+  (timeline) => {
+    if (timeline && timeline.length > 0) {
+      expandedEntries.value.clear();
+      // Default: only the newest (last) entry is expanded!
+      expandedEntries.value.add(timeline[timeline.length - 1].id);
+    }
+  },
+  { immediate: true }
+);
+
+const activeActionMenuId = ref(null);
+
+function toggleActionMenu(id) {
+  activeActionMenuId.value = activeActionMenuId.value === id ? null : id;
+}
+
+function closeActionMenu() {
+  activeActionMenuId.value = null;
+}
+
+async function downloadEntry(entry) {
+  closeActionMenu();
+  try {
+    let raw = entry.raw_source || '';
+    if (!raw && entry.timelineType === 'incoming') {
+      const res = await fetch(`${apiMessagesBase.value}/${entry.id}/source`);
+      if (res.ok) raw = await res.text();
+    }
+    const content = raw || entry.body_html || entry.body_text || entry.body || '';
+    const filename = `${entry.subject || 'message'}.${raw ? 'eml' : 'html'}`;
+    const mimeType = raw ? 'message/rfc822' : 'text/html;charset=utf-8';
+    const blob = new Blob([content], { type: mimeType });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Error downloading entry:', err);
+  }
+}
+
+function printEntry(entry) {
+  closeActionMenu();
+  const escapedText = escapeHtml(entry.body_text || entry.body || '');
+  const bodyContent = entry.body_html || `<pre style="white-space: pre-wrap; font-family: sans-serif; font-size: 14px; line-height: 1.5;">${escapedText}</pre>`;
+
+  const printFrame = document.createElement('iframe');
+  printFrame.style.position = 'fixed';
+  printFrame.style.right = '0';
+  printFrame.style.bottom = '0';
+  printFrame.style.width = '0';
+  printFrame.style.height = '0';
+  printFrame.style.border = '0';
+  document.body.appendChild(printFrame);
+
+  const frameDoc = printFrame.contentWindow?.document;
+  if (!frameDoc) {
+    window.print();
+    return;
+  }
+
+  frameDoc.open();
+  frameDoc.write(`<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>${entry.subject || 'Print Message'}</title>
+    <style>
+      @page { margin: 15mm; }
+      body { margin: 0; padding: 12px; font-family: sans-serif; color: #000; background: #fff; }
+      img { max-width: 100%; height: auto; }
+    </style>
+  </head>
+  <body>
+    ${bodyContent}
+  </body>
+</html>`);
+  frameDoc.close();
+
+  setTimeout(() => {
+    printFrame.contentWindow?.focus();
+    printFrame.contentWindow?.print();
+    setTimeout(() => {
+      document.body.removeChild(printFrame);
+    }, 1000);
+  }, 300);
+}
+
+function viewEntrySource(entry) {
+  closeActionMenu();
+  router.push(`${routePrefix.value}/view/${entry.id}/source`);
+}
+
+const entryToDelete = ref(null);
+const showDeleteEntryDialog = ref(false);
+
+function requestDeleteEntry(entry) {
+  closeActionMenu();
+  entryToDelete.value = entry;
+  showDeleteEntryDialog.value = true;
+}
+
+async function confirmDeleteEntry() {
+  if (!entryToDelete.value) return;
+  const target = entryToDelete.value;
+  showDeleteEntryDialog.value = false;
+  isDeleting.value = true;
+  try {
+    const url = target.timelineType === 'reply'
+      ? `/api/duty/replies/${target.id}`
+      : `${apiMessagesBase.value}/${target.id}`;
+
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) throw new Error('Failed to delete item');
+
+    if (conversationTimeline.value.length <= 1) {
+      messages.value = messages.value.filter((m) => m.id !== target.id);
+      router.push(routePrefix.value || '/');
+    } else {
+      await fetchMessageDetail(selectedMessageId.value);
+    }
+  } catch (err) {
+    errorDialog.value = {
+      open: true,
+      title: 'Error',
+      message: 'Failed to delete item: ' + err.message,
+    };
+  } finally {
+    isDeleting.value = false;
+    entryToDelete.value = null;
+  }
+}
+
+const showDeleteThreadDialog = ref(false);
+
+function deleteCurrentThread() {
+  showActionsMenu.value = false;
+  showDeleteThreadDialog.value = true;
+}
+
+async function confirmDeleteThread() {
+  const currentMsg = selectedMessageDetail.value;
+  if (!currentMsg) return;
+  const threadId = currentMsg.thread_id || currentMsg.id;
+  showDeleteThreadDialog.value = false;
+  isDeleting.value = true;
+
+  try {
+    const endpoint = apiMessagesBase.value === '/api/duty/messages'
+      ? `/api/duty/threads/${threadId}`
+      : `/api/messages/thread/${threadId}`;
+
+    const res = await fetch(endpoint, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) throw new Error('Failed to delete thread');
+
+    messages.value = messages.value.filter((m) => (m.thread_id || m.id) !== threadId && m.id !== currentMsg.id);
+    router.push(routePrefix.value || '/');
+  } catch (err) {
+    errorDialog.value = {
+      open: true,
+      title: 'Error',
+      message: 'Failed to delete thread: ' + err.message,
+    };
+  } finally {
+    isDeleting.value = false;
+  }
+}
+
+function getSafeIframeContent(msg) {
+  if (!msg) return '';
 
   const injectedBaseAndStyles = `
     <base target="_blank">
@@ -549,8 +803,8 @@ const safeIframeContent = computed(() => {
     </style>
   `;
 
-  if (selectedMessageDetail.value.body_html) {
-    let html = selectedMessageDetail.value.body_html;
+  if (msg.body_html) {
+    let html = msg.body_html;
     if (/<head[^>]*>/i.test(html)) {
       html = html.replace(/<head[^>]*>/i, (match) => match + injectedBaseAndStyles);
     } else if (/<html[^>]*>/i.test(html)) {
@@ -570,9 +824,53 @@ const safeIframeContent = computed(() => {
     return html;
   }
 
-  const escapedText = escapeHtml(selectedMessageDetail.value.body_text || '');
+  const escapedText = escapeHtml(msg.body_text || '');
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${injectedBaseAndStyles}<style>#email-content-wrapper{font-family:sans-serif;font-size:14px;line-height:1.5;color:#16161a;padding:20px;white-space:pre-wrap;word-break:break-word;}@media(prefers-color-scheme:dark){#email-content-wrapper{color:#e2e8f0;background:#0f172a;}}</style></head><body><div id="email-content-wrapper">${escapedText}</div></body></html>`;
+}
+
+const safeIframeContent = computed(() => {
+  return getSafeIframeContent(selectedMessageDetail.value);
 });
+
+function handleTimelineIframeLoad(e) {
+  const iframe = e?.target;
+  if (!iframe) return;
+
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+
+    const wrapper = doc.getElementById('email-content-wrapper');
+    const updateHeight = () => {
+      let targetHeight = 0;
+      if (wrapper) {
+        targetHeight = Math.ceil(wrapper.getBoundingClientRect().height || wrapper.scrollHeight);
+      } else if (doc.body) {
+        targetHeight = Math.ceil(doc.body.scrollHeight || doc.documentElement.scrollHeight);
+      }
+      if (targetHeight > 0) {
+        iframe.style.height = `${targetHeight}px`;
+      }
+    };
+
+    updateHeight();
+
+    if (window.ResizeObserver && (wrapper || doc.body)) {
+      const observer = new ResizeObserver(() => updateHeight());
+      observer.observe(wrapper || doc.body);
+    }
+
+    const images = doc.querySelectorAll('img');
+    images.forEach((img) => {
+      if (!img.complete) {
+        img.addEventListener('load', updateHeight, { once: true });
+        img.addEventListener('error', updateHeight, { once: true });
+      }
+    });
+  } catch (err) {
+    console.error('Failed to adjust timeline iframe height:', err);
+  }
+}
 
 const emailIframeRef = ref(null);
 let iframeResizeObserver = null;
@@ -847,6 +1145,13 @@ onUnmounted(() => {
                         <span class="truncate text-sm/5 font-medium text-emerald-600 dark:text-emerald-400">
                           {{ msg.from_name || msg.from_address }}
                         </span>
+                        <span
+                          v-if="msg.thread_count && msg.thread_count > 1"
+                          class="md:hidden inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700 shrink-0"
+                          title="Messages in thread"
+                        >
+                          {{ msg.thread_count }}
+                        </span>
                         <button
                           v-if="getMsgOtp(msg)"
                           type="button"
@@ -873,6 +1178,13 @@ onUnmounted(() => {
                         <div class="flex items-center gap-2">
                           <span class="truncate text-sm/5 text-gray-900 dark:text-gray-300">
                             {{ msg.subject || '(No subject)' }}
+                          </span>
+                          <span
+                            v-if="msg.thread_count && msg.thread_count > 1"
+                            class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700 shrink-0"
+                            title="Messages in thread"
+                          >
+                            {{ msg.thread_count }}
                           </span>
                           <Paperclip
                             v-if="msg.has_attachments === 1"
@@ -1026,18 +1338,6 @@ onUnmounted(() => {
             </h2>
           </div>
           <div class="relative mt-4 flex shrink-0 items-center gap-2 md:mt-0 md:ml-4">
-            <!-- Reply button for On-Duty mode -->
-            <button
-              v-if="isOnDutyMode"
-              type="button"
-              @click="openReplyBox"
-              class="rounded-md font-medium inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 ring-1 ring-inset ring-emerald-600/30 text-white bg-emerald-600 hover:bg-emerald-500 shadow-xs transition cursor-pointer"
-              title="Reply to sender"
-            >
-              <Reply class="size-3.5 shrink-0" />
-              <span>Reply</span>
-            </button>
-
             <!-- Trigger Dropdown -->
             <button
               type="button"
@@ -1060,66 +1360,426 @@ onUnmounted(() => {
               v-if="showActionsMenu"
               class="absolute right-0 top-full mt-1.5 w-44 rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black/5 dark:ring-gray-700 z-50 py-1 text-sm focus:outline-none"
             >
-              <!-- Reply (On-Duty mode only) -->
-              <button
-                v-if="isOnDutyMode"
-                type="button"
-                @click="() => { showActionsMenu = false; openReplyBox(); }"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition cursor-pointer font-medium"
-              >
-                <Reply class="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                <span>Reply</span>
-              </button>
-              <div v-if="isOnDutyMode" class="-mx-1 my-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+              <template v-if="conversationTimeline.length > 1">
+                <button
+                  type="button"
+                  @click="expandAllEntries"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
+                >
+                  <ChevronDown class="size-4 shrink-0" />
+                  <span>Expand All</span>
+                </button>
+                <button
+                  type="button"
+                  @click="collapseAllEntries"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
+                >
+                  <ChevronRight class="size-4 shrink-0" />
+                  <span>Collapse All</span>
+                </button>
+                <div class="-mx-1 my-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+                <button
+                  type="button"
+                  @click="deleteCurrentThread"
+                  :disabled="isDeleting"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition disabled:opacity-50 cursor-pointer"
+                >
+                  <Trash class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                  <span>Delete Thread</span>
+                </button>
+              </template>
+              <template v-else>
+                <!-- Download -->
+                <button
+                  type="button"
+                  @click="downloadEmail"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
+                >
+                  <Download class="size-4 shrink-0" />
+                  <span>Download</span>
+                </button>
 
-              <!-- Download -->
-              <button
-                type="button"
-                @click="downloadEmail"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
-              >
-                <Download class="size-4 shrink-0" />
-                <span>Download</span>
-              </button>
+                <!-- Source -->
+                <button
+                  type="button"
+                  @click="toggleSource"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
+                >
+                  <Code class="size-4 shrink-0" />
+                  <span>Source</span>
+                </button>
 
-              <!-- Source -->
-              <button
-                type="button"
-                @click="toggleSource"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
-              >
-                <Code class="size-4 shrink-0" />
-                <span>Source</span>
-              </button>
+                <!-- Print -->
+                <button
+                  type="button"
+                  @click="printEmail"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
+                >
+                  <Print class="size-4 shrink-0" />
+                  <span>Print</span>
+                </button>
 
-              <!-- Print -->
-              <button
-                type="button"
-                @click="printEmail"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer"
-              >
-                <Print class="size-4 shrink-0" />
-                <span>Print</span>
-              </button>
+                <!-- Divider -->
+                <div class="-mx-1 my-1 h-px bg-gray-200 dark:bg-gray-700"></div>
 
-              <!-- Divider -->
-              <div class="-mx-1 my-1 h-px bg-gray-200 dark:bg-gray-700"></div>
-
-              <!-- Delete -->
-              <button
-                type="button"
-                @click="() => { showActionsMenu = false; deleteSelectedMessage(); }"
-                :disabled="isDeleting"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition disabled:opacity-50 cursor-pointer"
-              >
-                <Trash class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
-                <span>Delete</span>
-              </button>
+                <!-- Delete -->
+                <button
+                  type="button"
+                  @click="() => { showActionsMenu = false; deleteSelectedMessage(); }"
+                  :disabled="isDeleting"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition disabled:opacity-50 cursor-pointer"
+                >
+                  <Trash class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                  <span>Delete</span>
+                </button>
+              </template>
             </div>
           </div>
         </div>
 
-        <div class="mt-4 overflow-hidden border-b border-gray-200 bg-white px-4 py-5 shadow sm:rounded-md sm:px-6 dark:border-gray-900 dark:bg-gray-800/75">
+        <!-- Conversation Timeline jika conversationTimeline.length > 1 -->
+        <div v-if="conversationTimeline.length > 1" class="space-y-3 mt-4">
+          <div
+            v-for="entry in conversationTimeline"
+            :key="entry.timelineType + '-' + entry.id"
+          >
+            <!-- ================= Pesan Masuk (incoming) ================= -->
+            <div v-if="entry.timelineType === 'incoming'">
+              <!-- Collapsed Incoming Row -->
+              <div
+                v-if="!isEntryExpanded(entry.id)"
+                @click="toggleEntry(entry.id)"
+                class="flex items-center justify-between gap-3 px-4 py-3 sm:px-5 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800/80 shadow-xs hover:bg-gray-50/80 dark:hover:bg-gray-800 transition cursor-pointer select-none"
+              >
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="inline-flex items-center justify-center shrink-0 rounded-full size-8 text-sm font-medium bg-lime-200 text-gray-700 dark:bg-lime-800 dark:text-lime-200">
+                    {{ getInitial(entry.sender_name || entry.sender_email) }}
+                  </span>
+                  <span class="font-semibold text-xs sm:text-sm text-gray-900 dark:text-gray-100 shrink-0">
+                    {{ entry.sender_name || entry.sender_email }}
+                  </span>
+                  <span class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {{ entry.snippet || entry.body_text || entry.subject }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2.5 shrink-0">
+                  <Paperclip v-if="entry.attachments && entry.attachments.length > 0" class="size-3.5 text-gray-400" />
+                  <time class="text-xs text-gray-400 whitespace-nowrap" :title="formatFullDate(entry.created_at || entry.received_at)">
+                    {{ formatRelativeTime(entry.created_at || entry.received_at) }}
+                  </time>
+                  <ChevronDown class="size-3.5 text-gray-400 -rotate-90 transition-transform" />
+                </div>
+              </div>
+
+              <!-- Expanded Incoming Card -->
+              <div
+                v-else
+                class="overflow-hidden border border-gray-200 bg-white shadow sm:rounded-md dark:border-gray-900 dark:bg-gray-800/75"
+              >
+                <div class="px-4 py-5 sm:px-6">
+                  <div class="-mt-4 -ml-4 flex flex-wrap items-center justify-between sm:flex-nowrap">
+                    <div class="mt-4 ml-4">
+                      <div class="flex items-center">
+                        <div class="shrink-0">
+                          <span class="inline-flex items-center justify-center shrink-0 select-none rounded-full align-middle size-10 text-xl bg-lime-200 dark:bg-lime-700 transition">
+                            <span class="truncate leading-none font-medium text-gray-600 group-hover:text-gray-700 dark:text-gray-300 dark:group-hover:text-gray-200">
+                              {{ getInitial(entry.sender_name || entry.sender_email) }}
+                            </span>
+                          </span>
+                        </div>
+                        <div class="ml-4">
+                          <div class="flex flex-wrap items-center gap-1.5 text-lg/6 font-medium text-emerald-600 dark:text-emerald-400">
+                            <span>{{ entry.sender_name || entry.sender_email }}</span>
+                            <span v-if="entry.sender_name && entry.sender_email" class="text-sm/5 font-normal text-gray-700 dark:text-gray-400">
+                              {{ entry.sender_email }}
+                            </span>
+                            <span
+                              v-if="entry.auth_status === 'pass'"
+                              class="ml-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-500/30"
+                            >Verified</span>
+                            <span
+                              v-else-if="entry.auth_status && entry.auth_status !== 'none'"
+                              class="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-500/30"
+                            >Unverified</span>
+                          </div>
+                          <div class="flex items-center text-sm/5 text-gray-500 dark:text-gray-400">
+                            <svg class="mr-1.5 size-5 shrink-0 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                              <path fill-rule="evenodd" d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884zM18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" clip-rule="evenodd"></path>
+                            </svg>
+                            <span class="truncate">
+                              <a :href="'mailto:' + currentAccount?.email" class="ml-1">{{ currentAccount?.email }};</a>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="mt-4 ml-4 flex shrink-0 items-center gap-2">
+                      <time class="truncate text-gray-500 dark:text-gray-400 text-sm" :title="formatFullDate(entry.created_at || entry.received_at)">
+                        {{ formatRelativeTime(entry.created_at || entry.received_at) }}
+                      </time>
+                      <div class="relative">
+                        <button
+                          type="button"
+                          @click.stop="toggleActionMenu(entry.id)"
+                          class="rounded-md p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition cursor-pointer"
+                          title="Message actions"
+                        >
+                          <EllipsisV class="size-4 shrink-0" />
+                        </button>
+                        <div
+                          v-if="activeActionMenuId === entry.id"
+                          class="fixed inset-0 z-40"
+                          @click.stop="closeActionMenu"
+                        ></div>
+                        <div
+                          v-if="activeActionMenuId === entry.id"
+                          class="absolute right-0 top-full mt-1 w-40 rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black/5 dark:ring-gray-700 z-50 py-1 text-xs focus:outline-none"
+                        >
+                          <button
+                            type="button"
+                            @click.stop="downloadEntry(entry)"
+                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer"
+                          >
+                            <Download class="size-3.5 shrink-0" />
+                            <span>Download</span>
+                          </button>
+                          <button
+                            type="button"
+                            @click.stop="viewEntrySource(entry)"
+                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer"
+                          >
+                            <Code class="size-3.5 shrink-0" />
+                            <span>Source</span>
+                          </button>
+                          <button
+                            type="button"
+                            @click.stop="printEntry(entry)"
+                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer"
+                          >
+                            <Print class="size-3.5 shrink-0" />
+                            <span>Print</span>
+                          </button>
+                          <div class="-mx-1 my-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+                          <button
+                            type="button"
+                            @click.stop="requestDeleteEntry(entry)"
+                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                          >
+                            <Trash class="size-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
+                            <span>Delete email</span>
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        @click.stop="toggleEntry(entry.id)"
+                        class="rounded-md p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition cursor-pointer"
+                        title="Collapse email"
+                      >
+                        <ChevronDown class="size-4 shrink-0" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- OTP Banner -->
+                  <div
+                    v-if="getMsgOtp(entry)"
+                    class="mt-5 flex items-center justify-between rounded-lg border border-lime-300 bg-lime-50/80 p-3 sm:p-4 dark:border-lime-700/50 dark:bg-lime-950/30"
+                  >
+                    <div class="flex items-center gap-3">
+                      <div class="flex size-9 items-center justify-center rounded-md bg-lime-200 dark:bg-lime-800/60 text-lime-800 dark:text-lime-200 font-mono font-bold text-xs uppercase">
+                        OTP
+                      </div>
+                      <div>
+                        <div class="text-xs font-medium uppercase tracking-wider text-lime-800 dark:text-lime-300">
+                          Verification Code Detected
+                        </div>
+                        <div class="font-mono text-xl font-bold tracking-widest text-gray-900 dark:text-white">
+                          {{ getMsgOtp(entry) }}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      @click="copyToClipboard(getMsgOtp(entry), 'timeline-otp-' + entry.id)"
+                      class="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700 dark:hover:bg-gray-700/60 transition cursor-pointer"
+                    >
+                      <Check v-if="copiedKey === 'timeline-otp-' + entry.id" class="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <Copy v-else class="size-3.5 text-gray-500 dark:text-gray-400" />
+                      <span>{{ copiedKey === 'timeline-otp-' + entry.id ? 'Copied!' : 'Copy Code' }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Attachments Section -->
+                <div
+                  v-if="entry.attachments && entry.attachments.length > 0"
+                  class="border-t border-b border-gray-200 px-4 py-3.5 sm:px-6 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/40"
+                >
+                  <div class="mb-2.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    <Paperclip class="size-3.5" />
+                    <span>Attachments ({{ entry.attachments.length }})</span>
+                  </div>
+                  <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+                    <div
+                      v-for="att in entry.attachments"
+                      :key="att.id"
+                      class="group flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-2.5 text-xs shadow-xs transition hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-gray-600 dark:hover:bg-gray-700/60"
+                    >
+                      <div class="flex min-w-0 items-center gap-2.5">
+                        <div class="flex size-7 shrink-0 items-center justify-center rounded-md bg-lime-100 text-lime-700 dark:bg-lime-950/60 dark:text-lime-400">
+                          <Paperclip class="size-3.5" />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                          <p class="truncate font-medium text-gray-900 dark:text-gray-200" :title="att.filename">
+                            {{ att.filename }}
+                          </p>
+                          <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                            {{ formatBytes(att.size) }}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        @click="downloadAttachment(att, entry.id)"
+                        :disabled="isDownloadingAttachment[att.id]"
+                        class="inline-flex size-7 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-600 transition hover:bg-white hover:text-gray-900 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-700/50 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white cursor-pointer"
+                        :title="'Download ' + att.filename"
+                      >
+                        <Spinner v-if="isDownloadingAttachment[att.id]" class="size-3.5 animate-spin text-lime-600 dark:text-lime-400" />
+                        <Download v-else class="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Content Body -->
+                <div v-if="entry.body_html" class="px-4 py-5 sm:px-6">
+                  <iframe
+                    class="w-full border-0 block"
+                    :srcdoc="getSafeIframeContent(entry)"
+                    sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                    scrolling="no"
+                    style="overflow: hidden; height: 150px;"
+                    @load="handleTimelineIframeLoad"
+                  ></iframe>
+                </div>
+                <div v-else class="px-4 py-5 sm:px-6 whitespace-pre-wrap font-sans text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
+                  {{ entry.body_text || '(Empty message)' }}
+                </div>
+              </div>
+            </div>
+
+            <!-- ================= Balasan Operator (reply) ================= -->
+            <div v-else-if="entry.timelineType === 'reply'">
+              <!-- Collapsed Reply Row -->
+              <div
+                v-if="!isEntryExpanded(entry.id)"
+                @click="toggleEntry(entry.id)"
+                class="flex items-center justify-between gap-3 px-4 py-3 sm:px-5 rounded-md border border-emerald-200/90 dark:border-emerald-800/70 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-xs hover:bg-emerald-50/70 dark:hover:bg-emerald-950/40 transition cursor-pointer select-none border-l-4 border-l-emerald-500"
+              >
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="inline-flex items-center justify-center shrink-0 rounded-full size-8 text-sm font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                    <Reply class="size-4" />
+                  </span>
+                  <span class="font-semibold text-xs sm:text-sm text-emerald-700 dark:text-emerald-400 shrink-0">
+                    Operator Reply
+                  </span>
+                  <span class="text-xs text-gray-600 dark:text-gray-300 truncate">
+                    {{ entry.body }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2.5 shrink-0">
+                  <time class="text-xs text-gray-400 whitespace-nowrap" :title="formatFullDate(entry.created_at)">
+                    {{ formatRelativeTime(entry.created_at) }}
+                  </time>
+                  <ChevronDown class="size-3.5 text-gray-400 -rotate-90 transition-transform" />
+                </div>
+              </div>
+
+              <!-- Expanded Reply Card -->
+              <div
+                v-else
+                class="overflow-hidden rounded-md border border-emerald-200/90 dark:border-emerald-800/70 bg-emerald-50/30 dark:bg-emerald-950/20 shadow p-4 sm:p-5 border-l-4 border-l-emerald-500"
+              >
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2.5 border-b border-emerald-100 dark:border-emerald-900/40">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <div class="flex size-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                      <Reply class="size-3.5" />
+                    </div>
+                    <div class="flex flex-wrap items-center gap-1.5 text-xs sm:text-sm">
+                      <span class="font-semibold text-emerald-700 dark:text-emerald-400">{{ entry.sender_email }}</span>
+                      <span class="text-gray-400">&rarr;</span>
+                      <span class="text-gray-600 dark:text-gray-300">{{ entry.recipient_email }}</span>
+                    </div>
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                      Operator Reply
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <time class="text-xs text-gray-500 dark:text-gray-400" :title="formatFullDate(entry.created_at)">
+                      {{ formatRelativeTime(entry.created_at) || entry.created_at }}
+                    </time>
+                    <div class="relative">
+                      <button
+                        type="button"
+                        @click.stop="toggleActionMenu(entry.id)"
+                        class="rounded-md p-1.5 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition cursor-pointer"
+                        title="Reply actions"
+                      >
+                        <EllipsisV class="size-4 shrink-0" />
+                      </button>
+                      <div
+                        v-if="activeActionMenuId === entry.id"
+                        class="fixed inset-0 z-40"
+                        @click.stop="closeActionMenu"
+                      ></div>
+                      <div
+                        v-if="activeActionMenuId === entry.id"
+                        class="absolute right-0 top-full mt-1 w-40 rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black/5 dark:ring-gray-700 z-50 py-1 text-xs focus:outline-none"
+                      >
+                        <button
+                          type="button"
+                          @click.stop="printEntry(entry)"
+                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer"
+                        >
+                          <Print class="size-3.5 shrink-0" />
+                          <span>Print</span>
+                        </button>
+                        <div class="-mx-1 my-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+                        <button
+                          type="button"
+                          @click.stop="requestDeleteEntry(entry)"
+                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                        >
+                          <Trash class="size-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
+                          <span>Delete reply</span>
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      @click.stop="toggleEntry(entry.id)"
+                      class="rounded-md p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition cursor-pointer"
+                      title="Collapse reply"
+                    >
+                      <ChevronDown class="size-4 shrink-0" />
+                    </button>
+                  </div>
+                </div>
+                <div v-if="entry.subject" class="font-medium text-xs sm:text-sm text-gray-900 dark:text-gray-200 mb-2">
+                  {{ entry.subject }}
+                </div>
+                <div class="text-xs sm:text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed font-sans">
+                  {{ entry.body }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Single Message View jika conversationTimeline.length <= 1 -->
+        <div v-else class="mt-4 overflow-hidden border-b border-gray-200 bg-white px-4 py-5 shadow sm:rounded-md sm:px-6 dark:border-gray-900 dark:bg-gray-800/75">
           <div class="-mt-4 -ml-4 flex flex-wrap items-center justify-between sm:flex-nowrap">
             <div class="mt-4 ml-4">
               <div class="flex items-center">
@@ -1274,76 +1934,89 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Reply Box Section (On-Duty mode only) -->
-          <div
-            v-if="isOnDutyMode && showReplyBox"
-            class="border-t border-gray-200 px-4 py-4 sm:px-6 dark:border-gray-700/60 bg-white dark:bg-gray-800/90"
+        <!-- Reply Button Trigger (On-Duty mode only) -->
+        <div v-if="isOnDutyMode && !showReplyBox" class="mt-4 flex items-center">
+          <button
+            type="button"
+            @click="openReplyBox"
+            class="inline-flex items-center gap-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-xs sm:text-sm font-semibold shadow-xs transition cursor-pointer"
           >
-            <div class="mb-3 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <Reply class="size-4 text-emerald-600 dark:text-emerald-400" />
-                <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
-                  Reply to <span class="text-emerald-600 dark:text-emerald-400 font-mono">{{ selectedMessageDetail.sender_email }}</span>
-                </h3>
-              </div>
-              <span class="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300">
-                From: {{ currentAccount?.email || 'support@pvrge.com' }}
-              </span>
+            <Reply class="size-4 shrink-0" />
+            <span>Reply</span>
+          </button>
+        </div>
+
+        <!-- Reply Box Section (On-Duty mode only) - tetap berada di bagian paling bawah untuk memudahkan membalas pesan terakhir -->
+        <div
+          v-if="isOnDutyMode && showReplyBox"
+          id="reply-box-form"
+          class="mt-4 overflow-hidden rounded-md border border-gray-200 bg-white p-4 sm:p-6 shadow dark:border-gray-700 dark:bg-gray-800/90"
+        >
+          <div class="mb-3 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <Reply class="size-4 text-emerald-600 dark:text-emerald-400" />
+              <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                Reply to <span class="text-emerald-600 dark:text-emerald-400 font-mono">{{ selectedMessageDetail.sender_email }}</span>
+              </h3>
             </div>
-
-            <!-- Error banner -->
-            <div
-              v-if="replyError"
-              class="mb-3 rounded-md bg-rose-50 p-2.5 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60"
-            >
-              {{ replyError }}
-            </div>
-
-            <form @submit.prevent="submitEmailReply" class="space-y-3">
-              <div>
-                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Subject</label>
-                <input
-                  type="text"
-                  v-model="replySubject"
-                  required
-                  placeholder="Subject..."
-                  class="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 shadow-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Message Body</label>
-                <textarea
-                  v-model="replyBody"
-                  required
-                  rows="6"
-                  placeholder="Write your email reply here..."
-                  class="block w-full rounded-md border border-gray-300 bg-white p-3 text-xs text-gray-900 shadow-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white font-sans leading-relaxed"
-                ></textarea>
-              </div>
-
-              <div class="flex items-center justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  @click="cancelReply"
-                  :disabled="isSendingReply"
-                  class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 cursor-pointer disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  :disabled="isSendingReply || !replyBody.trim()"
-                  class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-500 focus:outline-none disabled:opacity-50 cursor-pointer transition"
-                >
-                  <Spinner v-if="isSendingReply" class="size-3.5 animate-spin" />
-                  <Reply v-else class="size-3.5" />
-                  <span>{{ isSendingReply ? 'Sending...' : 'Send Reply' }}</span>
-                </button>
-              </div>
-            </form>
+            <span class="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300">
+              From: {{ currentAccount?.email || 'support@pvrge.com' }}
+            </span>
           </div>
+
+          <!-- Error banner -->
+          <div
+            v-if="replyError"
+            class="mb-3 rounded-md bg-rose-50 p-2.5 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60"
+          >
+            {{ replyError }}
+          </div>
+
+          <form @submit.prevent="submitEmailReply" class="space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Subject</label>
+              <input
+                type="text"
+                v-model="replySubject"
+                required
+                placeholder="Subject..."
+                class="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 shadow-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Message Body</label>
+              <textarea
+                v-model="replyBody"
+                required
+                rows="6"
+                placeholder="Write your email reply here..."
+                class="block w-full rounded-md border border-gray-300 bg-white p-3 text-xs text-gray-900 shadow-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white font-sans leading-relaxed"
+              ></textarea>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                @click="cancelReply"
+                :disabled="isSendingReply"
+                class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                :disabled="isSendingReply || !replyBody.trim()"
+                class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-500 focus:outline-none disabled:opacity-50 cursor-pointer transition"
+              >
+                <Spinner v-if="isSendingReply" class="size-3.5 animate-spin" />
+                <Reply v-else class="size-3.5" />
+                <span>{{ isSendingReply ? 'Sending...' : 'Send Reply' }}</span>
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -1361,6 +2034,40 @@ onUnmounted(() => {
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction @click="confirmDeleteMessage" class="bg-rose-600 hover:bg-rose-700 text-white">
             Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <AlertDialog :open="showDeleteEntryDialog" @update:open="showDeleteEntryDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete {{ entryToDelete?.timelineType === 'reply' ? 'Reply' : 'Email' }}</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete this {{ entryToDelete?.timelineType === 'reply' ? 'reply' : 'email' }}? This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction @click="confirmDeleteEntry" class="bg-rose-600 hover:bg-rose-700 text-white">
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <AlertDialog :open="showDeleteThreadDialog" @update:open="showDeleteThreadDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Conversation Thread</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete this entire conversation thread? All messages and replies in this thread will be permanently deleted.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction @click="confirmDeleteThread" class="bg-rose-600 hover:bg-rose-700 text-white">
+            Delete Thread
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

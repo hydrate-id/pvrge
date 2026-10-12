@@ -25,6 +25,10 @@ CREATE TABLE IF NOT EXISTS duty_accounts (
 CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
     account_id TEXT REFERENCES accounts(id) ON DELETE CASCADE,
+    thread_id TEXT,
+    message_rfc_id TEXT,
+    in_reply_to TEXT,
+    references_header TEXT,
     sender_email TEXT,
     sender_name TEXT,
     subject TEXT,
@@ -41,6 +45,8 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_account ON messages(account_id);
 CREATE INDEX IF NOT EXISTS idx_messages_expires ON messages(expires_at);
+CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON messages(thread_id);
+CREATE INDEX IF NOT EXISTS idx_messages_rfc_id ON messages(message_rfc_id);
 
 CREATE TABLE IF NOT EXISTS ip_creations (
     ip_hash TEXT,
@@ -87,7 +93,9 @@ CREATE TABLE IF NOT EXISTS email_replies (
     recipient_email TEXT NOT NULL,
     subject TEXT NOT NULL,
     body TEXT NOT NULL,
+    message_rfc_id TEXT,
     created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_email_replies_message_id ON email_replies(message_id);
+CREATE INDEX IF NOT EXISTS idx_email_replies_rfc_id ON email_replies(message_rfc_id);
 
